@@ -443,6 +443,20 @@ async def poller() -> None:
 async def lifespan(app: FastAPI):
     store.init()
     config.ensure_api_token()
+
+    # Wer die App eingerichtet hat, bevor es diese Ueberwachung gab, haette nie
+    # eine Warnung bekommen - der Startzeitpunkt fehlte einfach. Dann ab jetzt
+    # zaehlen: ungenau, aber ungleich besser als eine Frist, die stillschweigend
+    # ablaeuft.
+    if config.setup_done and not config.get("tuya_setup_ts"):
+        config.set("tuya_setup_ts", time.time())
+        config.save()
+        log.info("Startzeitpunkt fuer die Testzeitraum-Ueberwachung nachgetragen")
+        store.log_event(
+            "info",
+            "Ueberwachung des Tuya-Testzeitraums beginnt ab heute "
+            "(tatsaechlicher Projektstart unbekannt)",
+        )
     task = asyncio.create_task(poller(), name="tuya-poller")
     log.info("Poller gestartet (Intervall %ss)", config.get("refresh_seconds", 10))
     try:
@@ -894,6 +908,7 @@ async def settings_page(request: Request, saved: str = ""):
         "settings.html",
         regions=ENDPOINTS,
         api_token=config.ensure_api_token(),
+        trial=trial_status(),
         saved=saved,
         error=None,
     )
@@ -918,6 +933,7 @@ async def settings_save(
             "settings.html",
             regions=ENDPOINTS,
             api_token=config.ensure_api_token(),
+            trial=trial_status(),
             saved="",
             error=msg,
         )

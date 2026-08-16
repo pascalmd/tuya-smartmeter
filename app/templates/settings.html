@@ -69,6 +69,31 @@
 </form>
 
 <div class="card">
+  <h2>Tuya-Testzeitraum</h2>
+  {% if trial.known %}
+    <p class="muted" style="margin-top:0">
+      Beobachtet seit <strong>{{ trial.days }} Tagen</strong>.
+      {% if trial.warn %}
+        Zeit, ihn zu verlängern.
+      {% else %}
+        Erinnerung in {{ trial.days_until_reminder }} Tagen.
+      {% endif %}
+    </p>
+  {% else %}
+    <p class="muted" style="margin-top:0">Noch keine Beobachtung gestartet.</p>
+  {% endif %}
+  <p class="muted">
+    Tuya befristet kostenlose Cloud-Projekte und sagt über die Schnittstelle
+    nicht, wann Schluss ist. Verlängert wird unter <code>iot.tuya.com</code> →
+    dein Projekt → <em>Service</em> → <em>Extend Trial</em>. Danach hier den
+    Zähler zurücksetzen.
+  </p>
+  <form method="post" action="/trial-verlaengert">
+    <button class="secondary" type="submit">Verlängert — Zähler zurücksetzen</button>
+  </form>
+</div>
+
+<div class="card">
   <h2>API-Token</h2>
   <p class="muted">
     Für Zugriffe von außen (ioBroker, Zabbix, Skripte) — als Kopfzeile
