@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Ersteinrichtung{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Willkommen — Schritt 1 von 4</h2>
+  <p class="muted">
+    Hier wird die Verbindung zur Tuya-Cloud eingerichtet. Danach folgen Gerät,
+    Tibber und die Automatik. Alle Angaben bleiben auf diesem Server.
+  </p>
+</div>
+
+{% if error %}<div class="msg err">{{ error }}</div>{% endif %}
+
+<form method="post">
+  <div class="card">
+    <h2>Zugang zu dieser Oberfläche</h2>
+    <label for="password">Passwort festlegen
+      <div class="hint">Mindestens 8 Zeichen. Damit meldest du dich künftig hier an.</div>
+    </label>
+    <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password">
+
+    <label for="password2">Passwort wiederholen</label>
+    <input type="password" id="password2" name="password2" required minlength="8" autocomplete="new-password">
+  </div>
+
+  <div class="card">
+    <h2>Tuya-Cloud</h2>
+    <div class="msg warn">
+      Wichtig: Hier gehören <strong>nicht</strong> E-Mail und Passwort der Smart-Life-App hin.
+      Tuya erlaubt fremden Programmen den Zugriff nur über ein kostenloses Entwickler-Projekt.
+      Die Anleitung dafür steht unten.
+    </div>
+
+    <label for="client_id">Access ID / Client ID</label>
+    <input type="text" id="client_id" name="client_id" required autocomplete="off" spellcheck="false">
+
+    <label for="client_secret">Access Secret / Client Secret</label>
+    <input type="password" id="client_secret" name="client_secret" required autocomplete="off">
+
+    <label for="region">Rechenzentrum
+      <div class="hint">Für Deutschland: Central Europe.</div>
+    </label>
+    <select id="region" name="region">
+      <option value="eu" selected>Central Europe (Deutschland/EU)</option>
+      <option value="eu-west">Western Europe</option>
+      <option value="us">Western America</option>
+      <option value="us-west">Eastern America</option>
+      <option value="cn">China</option>
+      <option value="in">India</option>
+    </select>
+
+    <p style="margin-top:18px">
+      <button type="submit">Verbindung prüfen und weiter</button>
+    </p>
+  </div>
+</form>
+
+<div class="card">
+  <h2>Wie komme ich an Access ID und Secret?</h2>
+  <ol class="steps">
+    <li>Auf <code>iot.tuya.com</code> registrieren (kostenlos).</li>
+    <li>Links <strong>Cloud → Development → Create Cloud Project</strong>. Data Center: <strong>Central Europe</strong>.</li>
+    <li>Beim Anlegen die APIs <em>IoT Core</em>, <em>Authorization</em> und <em>Smart Home Scene Linkage</em> auswählen.</li>
+    <li>Im Projekt unter <strong>Overview</strong> stehen <strong>Access ID</strong> und <strong>Access Secret</strong> — die beiden hier eintragen.</li>
+    <li>Im Reiter <strong>Devices → Link App Account</strong> per QR-Code das Smart-Life-/Tuya-App-Konto verknüpfen. Erst dann sieht dieses Programm den Zähler.</li>
+  </ol>
+  <p class="muted">
+    Hinweis: Tuya befristet neue Projekte auf einen Testzeitraum. Läuft er ab, lässt er sich
+    im Projekt unter „Service → Extend Trial" kostenlos verlängern.
+  </p>
+</div>
+{% endblock %}

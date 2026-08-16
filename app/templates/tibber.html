@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Tibber{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Schritt 3 von 4 — Tibber verbinden</h2>
+  <p class="muted">
+    Die App holt die stündlichen Strompreise direkt von Tibber. Dafür braucht sie einen
+    persönlichen Zugriffstoken — kein Passwort.
+  </p>
+</div>
+
+{% if error %}<div class="msg err">{{ error }}</div>{% endif %}
+{% if saved == 'error' %}<div class="msg err">Gespeichert, aber der Preisabruf hat nicht geklappt. Token und Zuhause prüfen.</div>{% endif %}
+{% if saved == '1' %}<div class="msg ok">Gespeichert.</div>{% endif %}
+
+<form method="post" class="card">
+  <h2>Zugriffstoken</h2>
+  <label for="token">Tibber Access Token
+    {% if tibber.token %}<div class="hint">Ist hinterlegt. Feld leer lassen, um ihn zu behalten.</div>{% endif %}
+  </label>
+  <input type="password" id="token" name="token" autocomplete="off"
+         {% if not tibber.token %}required{% endif %}
+         placeholder="{{ '••••••••••••' if tibber.token else '' }}">
+  <p style="margin-top:16px"><button type="submit">Speichern und Zuhause laden</button></p>
+</form>
+
+{% if homes %}
+<form method="post" class="card">
+  <h2>Zuhause wählen</h2>
+  <label for="home_id">Welcher Tibber-Vertrag?</label>
+  <select id="home_id" name="home_id" onchange="document.getElementById('home_label').value = this.options[this.selectedIndex].text">
+    {% for home in homes %}
+      <option value="{{ home.id }}" {% if tibber.home_id == home.id %}selected{% endif %}>{{ home.label }}</option>
+    {% endfor %}
+  </select>
+  <input type="hidden" id="home_label" name="home_label" value="{{ homes[0].label }}">
+  <p style="margin-top:16px"><button type="submit">Übernehmen und weiter zur Automatik</button></p>
+</form>
+{% endif %}
+
+<div class="card">
+  <h2>Wo bekomme ich den Token?</h2>
+  <ol class="steps">
+    <li><code>developer.tibber.com</code> öffnen und mit dem normalen Tibber-Konto anmelden.</li>
+    <li>Unter <strong>Access Token</strong> den persönlichen Token kopieren.</li>
+    <li>Hier einfügen und speichern.</li>
+  </ol>
+  <p class="muted">Der Token darf nur lesen — schalten kann damit niemand.</p>
+</div>
+
+{% if cfg.get('tibber', {}).get('home_id') %}
+<div class="card">
+  <a class="btn secondary" href="/automation">Weiter zur Automatik</a>
+</div>
+{% endif %}
+{% endblock %}

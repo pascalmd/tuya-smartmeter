@@ -1,0 +1,187 @@
+# Installation auf TrueNAS — Schritt für Schritt
+
+Diese Anleitung ist für Leute gedacht, die TrueNAS bedienen können, aber keine
+Docker-Kommandos tippen wollen. Alles läuft über die TrueNAS-Oberfläche und
+danach über die Weboberfläche der App selbst.
+
+Rechne mit etwa 30 Minuten, davon 20 für die Tuya-Anmeldung.
+
+---
+
+## Was du brauchst
+
+| Was | Wozu |
+|-----|------|
+| TrueNAS SCALE 24.10 oder neuer | ältere Versionen haben das neue Apps-System noch nicht |
+| Tuya-/Smart-Life-Konto | das Konto, in dem der Zähler schon eingerichtet ist |
+| Tibber-Konto mit aktivem Vertrag | für die stündlichen Preise |
+| ~15 Minuten Geduld bei Tuya | die Entwickler-Anmeldung ist etwas sperrig |
+
+---
+
+## Teil 1 — Tuya-Zugang einrichten
+
+Tuya lässt fremde Programme **nicht** mit E-Mail und Passwort der App arbeiten.
+Stattdessen brauchst du ein kostenloses Entwickler-Projekt. Das klingt schlimmer,
+als es ist — du klickst dich einmal durch und kopierst dann zwei Zeichenketten.
+
+1. Auf **iot.tuya.com** ein Konto anlegen (kostenlos).
+2. Links im Menü: **Cloud → Development → Create Cloud Project**.
+   - Name: frei wählbar, z. B. `Smartmeter`
+   - Industry / Development Method: Standardwerte lassen
+   - **Data Center: Central Europe** ← wichtig für Deutschland
+3. Im nächsten Schritt werden APIs abgefragt. Diese drei müssen dabei sein:
+   - **IoT Core**
+   - **Authorization**
+   - **Smart Home Scene Linkage**
+4. Im fertigen Projekt unter **Overview** stehen:
+   - **Access ID / Client ID**
+   - **Access Secret / Client Secret**
+
+   Beide brauchst du gleich — kopiere sie in einen Notizzettel.
+5. Reiter **Devices → Link App Account → Add App Account**. Es erscheint ein
+   QR-Code. Den scannst du mit der **Smart-Life-App** (bzw. Tuya Smart):
+   *Ich → oben rechts das Scan-Symbol*.
+
+   Erst nach diesem Schritt sieht das Programm deinen Zähler.
+
+> **Hinweis zum Testzeitraum:** Tuya befristet neue Projekte. Läuft die Frist ab,
+> hört der Zugriff auf zu funktionieren. Im Projekt unter **Service → Extend Trial**
+> lässt sie sich kostenlos verlängern. Ein Kalendereintrag lohnt sich.
+
+---
+
+## Teil 2 — Tibber-Token holen
+
+1. **developer.tibber.com** öffnen, mit dem normalen Tibber-Konto anmelden.
+2. Unter **Access Token** den persönlichen Token kopieren.
+
+Der Token darf nur lesen — schalten kann damit niemand.
+
+---
+
+## Teil 3 — App in TrueNAS installieren
+
+In TrueNAS: **Apps → Discover Apps → Custom App** (Knopf oben rechts).
+
+Es gibt dort zwei Wege. Der YAML-Weg ist weniger Klickerei, der Formular-Weg
+ist übersichtlicher. Beide führen zum selben Ergebnis — nimm einen.
+
+### Weg A — per YAML (empfohlen, weniger Fehlerquellen)
+
+Im Custom-App-Fenster auf **Install via YAML** umschalten und das hier einfügen:
+
+```yaml
+services:
+  tuya-smartmeter:
+    image: ghcr.io/DEIN-NAME/tuya-smartmeter:latest
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    volumes:
+      - /mnt/DEIN-POOL/apps/tuya-smartmeter:/config
+    environment:
+      TZ: Europe/Berlin
+```
+
+Zwei Zeilen musst du anpassen:
+
+- `image:` — die Adresse des Images (siehe README, Abschnitt „Image bereitstellen")
+- `/mnt/DEIN-POOL/apps/tuya-smartmeter` — ein Ordner auf deinem Pool.
+  Lege ihn vorher unter **Datasets** an, sonst legt TrueNAS ihn als Verzeichnis an.
+
+### Weg B — über das Formular
+
+| Feld | Wert |
+|------|------|
+| Application Name | `tuya-smartmeter` |
+| Image Repository | `ghcr.io/DEIN-NAME/tuya-smartmeter` |
+| Image Tag | `latest` |
+| Port Forwarding → Container Port | `8099` |
+| Port Forwarding → Node Port | `8099` (oder ein freier Port deiner Wahl) |
+| Storage → Mount Path | `/config` |
+| Storage → Host Path | dein Ordner, z. B. `/mnt/tank/apps/tuya-smartmeter` |
+| Environment → Name / Value | `TZ` / `Europe/Berlin` |
+| Restart Policy | `Unless Stopped` |
+
+Alles andere kann auf Standard bleiben. Dann **Install**.
+
+> **Wichtig:** Der Ordner unter `/config` muss dauerhaft sein. Dort liegen deine
+> Zugangsdaten und die Messwert-Historie. Ohne ihn ist nach jedem Neustart alles weg.
+
+---
+
+## Teil 4 — Ersteinrichtung im Browser
+
+Die App meldet sich nach etwa einer halben Minute unter:
+
+```
+http://<IP-deines-TrueNAS>:8099
+```
+
+Dann führt sie dich durch vier Schritte:
+
+1. **Passwort festlegen** — damit meldest du dich künftig hier an.
+   Dazu Access ID und Access Secret von oben eintragen, Rechenzentrum
+   *Central Europe*. Die App prüft die Daten sofort.
+2. **Gerät wählen** — die Liste kommt aus deinem Tuya-Konto. Den Zähler anklicken.
+3. **Tibber verbinden** — Token einfügen, dann dein Zuhause auswählen.
+4. **Automatik einstellen** — siehe unten.
+
+Danach läuft die App dauerhaft weiter, auch wenn du den Browser schließt.
+
+---
+
+## Teil 5 — Automatik einstellen
+
+Drei Regeln stehen zur Wahl:
+
+**Preisschwelle** — am einfachsten zu verstehen.
+Du gibst an: einschalten bis z. B. 25 ct/kWh. Liegt der aktuelle Preis darunter,
+ist der Zähler ein, sonst aus.
+
+**Günstigste Stunden** — gut für planbaren Verbrauch.
+Du gibst an: die 6 günstigsten Stunden des Tages. Die App sucht sie aus den
+Tagespreisen heraus und schaltet nur dann ein.
+
+**Tibber-Preisstufen** — folgt Tibbers eigener Einschätzung
+(sehr günstig / günstig / normal / teuer / sehr teuer). Du hakst an, bei welchen
+Stufen eingeschaltet werden soll.
+
+Dazu drei Schutzeinstellungen:
+
+- **Sicherheitsnetz** — nie länger als x Stunden aus. Verhindert, dass ein teurer
+  Tag das Gerät dauerhaft abschaltet. Wenn etwas dranhängt, das nicht beliebig
+  lange aus sein darf, stell das ein.
+- **Mindest-Aus-Zeit** — verhindert schnelles Hin- und Herschalten an der Preisgrenze.
+- **Pause nach Handbedienung** — schaltest du selbst auf der Übersicht, hält sich
+  die Automatik so lange zurück. Sonst würde sie sofort zurückschalten.
+
+Unten auf der Automatik-Seite siehst du eine **Vorschau der nächsten Stunden** —
+dort steht für jede Stunde Preis und ob der Schalter an wäre. Damit kannst du
+eine Einstellung prüfen, bevor sie scharf geschaltet wird.
+
+---
+
+## Wenn etwas nicht klappt
+
+| Symptom | Ursache und Abhilfe |
+|---------|---------------------|
+| „clientId is invalid" | Access ID oder Secret vertippt, oder falsches Rechenzentrum |
+| Geräteliste ist leer | „Link App Account" fehlt (Teil 1, Schritt 5), oder App-Konto liegt in einer anderen Region |
+| „No permissions" / Code 1106 | Im Tuya-Projekt fehlt eine der drei APIs, oder der Testzeitraum ist abgelaufen |
+| Tibber meldet 401 | Token abgelaufen — auf developer.tibber.com neu erzeugen |
+| Preise fehlen, Rest läuft | Vertrag ohne stündliche Preise, oder falsches Zuhause ausgewählt |
+| Seite nicht erreichbar | Port in TrueNAS geprüft? Manche Ports sind belegt — dann Node Port ändern |
+| Nach Neustart alles weg | Der `/config`-Ordner war nicht dauerhaft eingebunden |
+
+Detailfehler stehen im Container-Log: **Apps → tuya-smartmeter → Logs**.
+
+---
+
+## Zugriff von unterwegs
+
+Die App ist absichtlich nur im eigenen Netz erreichbar. Wenn du von außen
+drauf willst, ist ein VPN (WireGuard/Tailscale) der sichere Weg.
+Die App direkt ins Internet zu stellen, ist nicht zu empfehlen — sie schaltet Strom.
+Wenn es doch sein muss: nur hinter einem Reverse Proxy mit HTTPS.

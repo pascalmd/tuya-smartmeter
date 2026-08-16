@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Einstellungen{% endblock %}
+{% block content %}
+
+{% if saved == '1' %}<div class="msg ok">Gespeichert.</div>{% endif %}
+{% if saved == 'token' %}<div class="msg ok">Neuer API-Token erzeugt.</div>{% endif %}
+{% if error %}<div class="msg err">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>Bereiche</h2>
+  <p style="display:flex; gap:10px; flex-wrap:wrap; margin:0">
+    <a class="btn secondary" href="/devices">Gerät wechseln</a>
+    <a class="btn secondary" href="/tibber">Tibber</a>
+    <a class="btn secondary" href="/automation">Automatik</a>
+  </p>
+</div>
+
+<form method="post">
+  <div class="card">
+    <h2>Tuya-Cloud</h2>
+    <label for="client_id">Access ID</label>
+    <input type="text" id="client_id" name="client_id" value="{{ cfg.tuya.get('client_id', '') }}" required spellcheck="false">
+
+    <label for="client_secret">Access Secret
+      <div class="hint">Leer lassen, um das gespeicherte Secret zu behalten.</div>
+    </label>
+    <input type="password" id="client_secret" name="client_secret" placeholder="••••••••••••" autocomplete="off">
+
+    <label for="region">Rechenzentrum</label>
+    <select id="region" name="region">
+      {% for key in regions %}
+        <option value="{{ key }}" {% if cfg.tuya.get('region') == key %}selected{% endif %}>{{ key }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="refresh_seconds">Abfrageintervall (Sekunden)</label>
+    <input type="number" id="refresh_seconds" name="refresh_seconds" min="5" max="3600"
+           value="{{ cfg.get('refresh_seconds', 10) }}">
+    <div class="hint">
+      10 s sind ein guter Wert. Die Tuya-Cloud hat ein Tageslimit für Abfragen —
+      unter 5 s geht nicht.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Passwort ändern</h2>
+    <label for="password">Neues Passwort
+      <div class="hint">Leer lassen, um es nicht zu ändern.</div>
+    </label>
+    <input type="password" id="password" name="password" autocomplete="new-password">
+
+    <label for="password2">Wiederholen</label>
+    <input type="password" id="password2" name="password2" autocomplete="new-password">
+
+    <p style="margin-top:18px"><button type="submit">Speichern</button></p>
+  </div>
+</form>
+
+<div class="card">
+  <h2>API-Token</h2>
+  <p class="muted">
+    Für Zugriffe von außen (ioBroker, Zabbix, Skripte) — als Kopfzeile
+    <code>X-API-Token</code> oder als <code>?token=…</code>.
+  </p>
+  <input type="text" value="{{ api_token }}" readonly onclick="this.select()">
+  <form method="post" action="/settings/rotate-token" style="margin-top:12px">
+    <button class="secondary" type="submit">Neuen Token erzeugen</button>
+  </form>
+  <p class="muted" style="margin-bottom:0">
+    Beispiel:<br>
+    <code>curl -H "X-API-Token: …" http://&lt;server&gt;:8099/api/state</code><br>
+    <code>curl -X POST -H "X-API-Token: …" -H "Content-Type: application/json" \<br>
+    &nbsp;&nbsp;-d '{"code":"switch","value":true}' http://&lt;server&gt;:8099/api/switch</code>
+  </p>
+</div>
+{% endblock %}

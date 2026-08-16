@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Tuya Smartmeter{% endblock %}</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --fg: #16181d; --muted: #5c6470;
+    --line: #dfe2e8; --accent: #1a6fd4; --accent-fg: #ffffff;
+    --ok: #1c7c4a; --warn: #a8620a; --err: #b32020;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --card: #1d2026; --fg: #e9ecf1; --muted: #9aa3b0;
+      --line: #2c313a; --accent: #4d9bff; --accent-fg: #0b1220;
+      --ok: #4ec98a; --warn: #e0a458; --err: #ff7b72;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 16px; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 14px 16px; background: var(--card);
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  header nav { display: flex; gap: 14px; font-size: 14px; }
+  header nav a { color: var(--muted); text-decoration: none; }
+  header nav a:hover { color: var(--fg); }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 14px;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 15px; font-weight: 650; }
+  label { display: block; font-size: 14px; font-weight: 600; margin: 14px 0 5px; }
+  label:first-of-type { margin-top: 0; }
+  .hint { font-size: 13px; color: var(--muted); font-weight: 400; margin-top: 3px; }
+  input, select {
+    width: 100%; padding: 10px 12px; font-size: 16px; color: var(--fg);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button, .btn {
+    display: inline-block; padding: 11px 18px; font-size: 15px; font-weight: 600;
+    background: var(--accent); color: var(--accent-fg); border: 0;
+    border-radius: 8px; cursor: pointer; text-decoration: none;
+  }
+  button.secondary {
+    background: transparent; color: var(--fg); border: 1px solid var(--line);
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .msg { padding: 11px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 14px; }
+  .msg.err { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }
+  .msg.ok  { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+  .msg.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+  ol.steps { padding-left: 20px; font-size: 14px; color: var(--muted); }
+  ol.steps li { margin-bottom: 6px; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+  .muted { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+{% if show_nav|default(false) %}
+<header>
+  <h1>{{ cfg.get('device_name') or 'Tuya Smartmeter' }}</h1>
+  <nav>
+    <a href="/">Übersicht</a>
+    <a href="/devices">Gerät</a>
+    <a href="/settings">Einstellungen</a>
+    <a href="/logout">Abmelden</a>
+  </nav>
+</header>
+{% endif %}
+<div class="wrap">
+{% block content %}{% endblock %}
+</div>
+</body>
+</html>

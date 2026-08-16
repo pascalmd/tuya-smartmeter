@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Anmelden{% endblock %}
+{% block content %}
+<div style="height: 8vh"></div>
+{% if error %}<div class="msg err">{{ error }}</div>{% endif %}
+<form method="post" class="card">
+  <h2>Anmelden</h2>
+  <label for="password">Passwort</label>
+  <input type="password" id="password" name="password" required autofocus autocomplete="current-password">
+  <p style="margin-top:18px"><button type="submit">Anmelden</button></p>
+</form>
+{% endblock %}

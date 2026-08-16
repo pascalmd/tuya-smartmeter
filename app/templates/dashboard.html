@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}{{ cfg.get('device_name') or 'Übersicht' }}{% endblock %}
+{% block content %}
+
+<div id="alerts"></div>
+
+<div class="card">
+  <h2>Strompreis</h2>
+  <div id="price-now" style="font-size:30px; font-weight:700; line-height:1.2">–</div>
+  <div id="price-meta" class="muted">wird geladen …</div>
+</div>
+
+<div class="card">
+  <h2>Schalter</h2>
+  <div id="switches" class="muted">wird geladen …</div>
+  <div id="automation-note" class="muted" style="margin-top:12px"></div>
+</div>
+
+<div class="card">
+  <h2>Messwerte</h2>
+  <div id="metrics" class="muted">wird geladen …</div>
+</div>
+
+<div class="card" id="upcoming-card" style="display:none">
+  <h2>Nächste Stunden</h2>
+  <div id="upcoming" style="display:flex; gap:4px; align-items:flex-end; overflow-x:auto; padding-bottom:4px"></div>
+</div>
+
+<div class="card">
+  <h2>Status</h2>
+  <div id="status" class="muted">–</div>
+</div>
+
+<style>
+  .row {
+    display:flex; justify-content:space-between; align-items:center; gap:12px;
+    padding:10px 0; border-top:1px solid var(--line);
+  }
+  .row:first-child { border-top:0; }
+  .row .val { font-variant-numeric: tabular-nums; font-weight:600; }
+  .pill { font-size:12px; padding:2px 9px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+  .bar { width:26px; border-radius:4px 4px 0 0; background:var(--accent); opacity:.35; }
+  .bar.on { opacity:1; }
+  .bar-wrap { display:flex; flex-direction:column; align-items:center; gap:3px; font-size:11px; color:var(--muted); }
+</style>
+
+<script>
+const fmt = (v) => (typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits: 2}) : v);
+
+async function load() {
+  let s;
+  try {
+    const resp = await fetch('/api/state', {credentials: 'same-origin'});
+    if (resp.status === 401) { location.href = '/login'; return; }
+    s = await resp.json();
+  } catch (e) {
+    document.getElementById('status').textContent = 'Keine Verbindung zum Server.';
+    return;
+  }
+
+  // Meldungen
+  const alerts = [];
+  if (s.error) alerts.push(['err', 'Tuya: ' + s.error]);
+  if (s.price && s.price.error) alerts.push(['err', 'Tibber: ' + s.price.error]);
+  if (s.age_seconds !== null && s.age_seconds > Math.max(60, s.refresh_seconds * 6))
+    alerts.push(['warn', 'Letzte Rückmeldung vor ' + Math.round(s.age_seconds) + ' s.']);
+  document.getElementById('alerts').innerHTML = alerts
+    .map(([k, t]) => `<div class="msg ${k}">${t}</div>`).join('');
+
+  // Preis
+  const p = s.price || {};
+  document.getElementById('price-now').textContent = p.ct != null ? fmt(p.ct) + ' ct/kWh' : '–';
+  document.getElementById('price-meta').textContent = p.ct != null
+    ? (p.level_label ? p.level_label + ' · ' : '') + 'Stand vor ' + Math.round(p.age_seconds || 0) + ' s'
+    : 'Kein Tibber-Preis. Unter „Einstellungen → Tibber" einrichten.';
+
+  // Schalter
+  const auto = s.automation || {};
+  document.getElementById('switches').innerHTML = (s.switches || []).length
+    ? s.switches.map(sw => `
+        <div class="row">
+          <div>${sw.label}<div class="muted">${sw.code}</div></div>
+          <div style="display:flex; gap:8px">
+            <button ${sw.value ? 'class="secondary"' : ''} onclick="setSwitch('${sw.code}', true)"  ${sw.value ? 'disabled' : ''}>Ein</button>
+            <button ${!sw.value ? 'class="secondary"' : ''} onclick="setSwitch('${sw.code}', false)" ${!sw.value ? 'disabled' : ''}>Aus</button>
+          </div>
+        </div>`).join('')
+    : '<span class="muted">Dieses Gerät meldet keinen schaltbaren Ausgang.</span>';
+
+  // Automatik-Hinweis
+  const note = document.getElementById('automation-note');
+  if (!auto.enabled) {
+    note.innerHTML = 'Automatik ist aus. <a href="/automation">Einrichten</a>';
+  } else if (auto.override_active) {
+    note.innerHTML = `Handbetrieb — Automatik pausiert (noch ${auto.override_remaining_minutes} min).
+      <form method="post" action="/automation/resume" style="display:inline">
+        <button class="secondary" style="padding:4px 10px; font-size:13px">Jetzt fortsetzen</button>
+      </form>`;
+  } else {
+    const d = auto.decision || {};
+    note.innerHTML = `Automatik aktiv (${auto.mode_label})${d.reason ? ' — ' + d.reason : ''}`
+      + (auto.last_action ? `<div class="muted">Zuletzt: ${auto.last_action}</div>` : '');
+  }
+
+  // Messwerte
+  const rows = [];
+  (s.metrics || []).forEach(m => {
+    rows.push(`<div class="row"><div>${m.label}<div class="muted">${m.code}</div></div>
+               <div class="val">${fmt(m.value)} ${m.unit || ''}</div></div>`);
+  });
+  (s.phases || []).forEach(ph => {
+    rows.push(`<div class="row"><div>${ph.label}</div><div class="val">
+      ${fmt(ph.voltage_v)} V · ${fmt(ph.current_a)} A · ${fmt(ph.power_w)} W</div></div>`);
+  });
+  document.getElementById('metrics').innerHTML = rows.join('') || '<span class="muted">Keine Messwerte.</span>';
+
+  // Preisbalken
+  const up = (p.upcoming || []);
+  if (up.length) {
+    const max = Math.max(...up.map(u => u.ct || 0)) || 1;
+    document.getElementById('upcoming-card').style.display = '';
+    document.getElementById('upcoming').innerHTML = up.map(u => `
+      <div class="bar-wrap" title="${u.day} ${u.hour} · ${fmt(u.ct)} ct/kWh · ${u.level_label}">
+        <div>${fmt(u.ct)}</div>
+        <div class="bar" style="height:${Math.max(8, (u.ct / max) * 90)}px"></div>
+        <div>${u.hour}</div>
+      </div>`).join('');
+  }
+
+  document.getElementById('status').innerHTML =
+    `Gerät: ${s.device_name || '–'} · Abfragen: ${s.polls} (${s.failures} Fehler) ·
+     Intervall: ${s.refresh_seconds} s · Dienst läuft seit ${Math.round(s.uptime_seconds / 60)} min`;
+}
+
+async function setSwitch(code, value) {
+  document.querySelectorAll('#switches button').forEach(b => b.disabled = true);
+  try {
+    const resp = await fetch('/api/switch', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code, value}),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({detail: 'Unbekannter Fehler'}));
+      document.getElementById('alerts').innerHTML =
+        `<div class="msg err">Schalten fehlgeschlagen: ${err.detail}</div>`;
+    }
+  } finally {
+    await load();
+  }
+}
+
+load();
+setInterval(load, 5000);
+</script>
+{% endblock %}

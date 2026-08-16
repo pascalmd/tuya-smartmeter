@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Gerät wählen{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Schritt 2 von 4 — Gerät wählen</h2>
+  <p class="muted">
+    Diese Liste kommt aus deinem Tuya-Konto. Wähle den Stromzähler aus (z. B. KTEM06).
+  </p>
+</div>
+
+{% if error %}<div class="msg err">{{ error }}</div>{% endif %}
+
+{% if devices %}
+  {% for device in devices %}
+  <form method="post" class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap">
+    <div>
+      <strong>{{ device.name or device.id }}</strong>
+      {% if cfg.get('device_id') == device.id %}
+        <span class="msg ok" style="display:inline-block; padding:2px 8px; margin:0 0 0 8px">aktiv</span>
+      {% endif %}
+      <div class="muted">
+        {{ device.product_name or device.category or '' }}
+        · {{ 'online' if device.online else 'offline' }}
+        · <code>{{ device.id }}</code>
+      </div>
+    </div>
+    <input type="hidden" name="device_id" value="{{ device.id }}">
+    <input type="hidden" name="device_name" value="{{ device.name or device.id }}">
+    <button type="submit" {% if cfg.get('device_id') == device.id %}class="secondary"{% endif %}>
+      {{ 'Erneut wählen' if cfg.get('device_id') == device.id else 'Dieses Gerät' }}
+    </button>
+  </form>
+  {% endfor %}
+{% elif not error %}
+  <div class="msg warn">
+    Es wurden keine Geräte gefunden. Im Tuya-Projekt unter
+    <strong>Devices → Link App Account</strong> das App-Konto verknüpfen und die Seite neu laden.
+  </div>
+{% endif %}
+
+<div class="card">
+  <p class="muted">
+    Nichts dabei? Prüfe, ob das Gerät in der Smart-Life-App auftaucht und ob das Projekt
+    im selben Rechenzentrum (Central Europe) liegt wie das App-Konto.
+  </p>
+  <a class="btn secondary" href="/devices">Liste neu laden</a>
+</div>
+{% endblock %}

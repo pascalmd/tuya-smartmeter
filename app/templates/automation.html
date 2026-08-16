@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Automatik{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Schritt 4 von 4 — Preisautomatik</h2>
+  <p class="muted">
+    Die App vergleicht den aktuellen Tibber-Preis mit deiner Regel und schaltet den
+    Zähler entsprechend ein oder aus. Sie läuft dauerhaft im Hintergrund — der Browser
+    muss dafür nicht offen sein.
+  </p>
+</div>
+
+{% if saved %}<div class="msg ok">Gespeichert und sofort angewendet.</div>{% endif %}
+{% if price_error %}<div class="msg err">Tibber: {{ price_error }}</div>{% endif %}
+
+{% if decision and decision.reason %}
+<div class="msg {{ 'ok' if decision.desired else 'warn' }}">
+  <strong>Aktuelle Bewertung:</strong> {{ decision.reason }}
+  {% if decision.desired is not none %} → Soll-Zustand: <strong>{{ 'EIN' if decision.desired else 'AUS' }}</strong>{% endif %}
+</div>
+{% endif %}
+
+<form method="post">
+  <div class="card">
+    <h2>Grundeinstellung</h2>
+    <label style="display:flex; align-items:center; gap:10px; margin-top:0">
+      <input type="checkbox" name="enabled" style="width:auto" {% if auto.enabled %}checked{% endif %}>
+      Automatik aktiv
+    </label>
+    <div class="hint">Ist sie aus, schaltet nur noch die Hand-Bedienung auf der Übersicht.</div>
+
+    <label for="switch_code">Schaltkanal des Zählers</label>
+    <select id="switch_code" name="switch_code">
+      {% for code in switch_codes %}
+        <option value="{{ code }}" {% if auto.switch_code == code %}selected{% endif %}>{{ code }}</option>
+      {% endfor %}
+    </select>
+    <div class="hint">Bei den meisten Zählern <code>switch</code>. Mehrkanalige Geräte zeigen hier mehrere.</div>
+
+    <label for="mode">Regel</label>
+    <select id="mode" name="mode" onchange="showMode(this.value)">
+      {% for key, label in mode_labels.items() %}
+        <option value="{{ key }}" {% if auto.mode == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="card mode-block" data-mode="threshold">
+    <h2>Preisschwelle</h2>
+    <label for="threshold_ct">Einschalten bis … ct/kWh</label>
+    <input type="number" id="threshold_ct" name="threshold_ct" step="0.1" min="0" max="200"
+           value="{{ '%.1f'|format(auto.threshold_ct) }}">
+    <div class="hint">Liegt der aktuelle Tibber-Preis darunter oder gleichauf, wird eingeschaltet — sonst aus.</div>
+  </div>
+
+  <div class="card mode-block" data-mode="cheapest">
+    <h2>Günstigste Stunden</h2>
+    <label for="cheapest_hours">Anzahl Stunden pro Tag</label>
+    <input type="number" id="cheapest_hours" name="cheapest_hours" min="0" max="24"
+           value="{{ auto.cheapest_hours }}">
+    <div class="hint">Die x günstigsten Stunden des Tages sind ein, alle anderen aus.</div>
+  </div>
+
+  <div class="card mode-block" data-mode="level">
+    <h2>Tibber-Preisstufen</h2>
+    <div class="hint" style="margin-bottom:8px">Bei welchen Stufen soll eingeschaltet werden?</div>
+    {% for level in levels %}
+      <label style="display:flex; align-items:center; gap:10px; margin:6px 0; font-weight:400">
+        <input type="checkbox" name="levels" value="{{ level }}" style="width:auto"
+               {% if level in auto.levels %}checked{% endif %}>
+        {{ level_labels[level] }}
+      </label>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>Schutz und Komfort</h2>
+
+    <label for="max_off_hours">Sicherheitsnetz: nie länger aus als … Stunden</label>
+    <input type="number" id="max_off_hours" name="max_off_hours" min="0" max="72" value="{{ auto.max_off_hours }}">
+    <div class="hint">0 = kein Sicherheitsnetz. Sinnvoll, damit ein teurer Tag nicht dauerhaft abschaltet.</div>
+
+    <label for="min_off_minutes">Mindestens … Minuten aus lassen</label>
+    <input type="number" id="min_off_minutes" name="min_off_minutes" min="0" max="720" value="{{ auto.min_off_minutes }}">
+    <div class="hint">Verhindert schnelles Hin- und Herschalten an Preisgrenzen. 0 = aus.</div>
+
+    <label for="override_minutes">Nach Handbedienung … Minuten pausieren</label>
+    <input type="number" id="override_minutes" name="override_minutes" min="0" max="1440" value="{{ auto.override_minutes }}">
+    <div class="hint">Schaltest du selbst, hält sich die Automatik so lange zurück. 0 = sofort wieder aktiv.</div>
+
+    <p style="margin-top:18px"><button type="submit">Speichern</button></p>
+  </div>
+</form>
+
+{% if preview %}
+<div class="card">
+  <h2>Vorschau der nächsten Stunden</h2>
+  <div style="overflow-x:auto">
+    <table style="width:100%; border-collapse:collapse; font-size:14px">
+      <thead>
+        <tr style="text-align:left; color:var(--muted)">
+          <th style="padding:6px 8px">Zeit</th>
+          <th style="padding:6px 8px">Preis</th>
+          <th style="padding:6px 8px">Stufe</th>
+          <th style="padding:6px 8px">Schalter</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in preview %}
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:6px 8px; white-space:nowrap">{{ row.day }} {{ row.hour }}</td>
+          <td style="padding:6px 8px; white-space:nowrap">{{ '%.2f'|format(row.ct) }} ct</td>
+          <td style="padding:6px 8px; color:var(--muted)">{{ row.level_label }}</td>
+          <td style="padding:6px 8px; color:{{ 'var(--ok)' if row.on else 'var(--muted)' }}">
+            {{ 'EIN' if row.on else 'aus' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="margin-bottom:0">
+    Vorschau nach der gespeicherten Regel. Sicherheitsnetz und Handbetrieb sind hier nicht berücksichtigt.
+  </p>
+</div>
+{% endif %}
+
+<script>
+  function showMode(mode) {
+    document.querySelectorAll('.mode-block').forEach(function (el) {
+      el.style.display = el.dataset.mode === mode ? '' : 'none';
+    });
+  }
+  showMode(document.getElementById('mode').value);
+</script>
+{% endblock %}
