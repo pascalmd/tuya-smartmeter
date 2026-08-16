@@ -2,9 +2,9 @@
 {% block title %}Tibber{% endblock %}
 {% block content %}
 <div class="card">
-  <h2>Schritt 3 von 4 — Tibber verbinden</h2>
+  <h2>Tibber verbinden</h2>
   <p class="muted">
-    Die App holt die stündlichen Strompreise direkt von Tibber. Dafür braucht sie einen
+    Du hast Tibber als Preisquelle gewählt. Dafür braucht die App einen
     persönlichen Zugriffstoken — kein Passwort.
   </p>
 </div>
@@ -18,7 +18,9 @@
   <label for="token">Tibber Access Token
     {% if tibber.token %}<div class="hint">Ist hinterlegt. Feld leer lassen, um ihn zu behalten.</div>{% endif %}
   </label>
-  <input type="password" id="token" name="token" autocomplete="off"
+  <input type="text" id="token" name="token" autocomplete="off" spellcheck="false"
+         style="font-family: ui-monospace, monospace"
+         data-bwignore="1" data-lpignore="true" data-1p-ignore data-form-type="other"
          {% if not tibber.token %}required{% endif %}
          placeholder="{{ '••••••••••••' if tibber.token else '' }}">
   <p style="margin-top:16px"><button type="submit">Speichern und Zuhause laden</button></p>

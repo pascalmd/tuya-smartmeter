@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app import automation  # noqa: E402
+from app import automation, prices  # noqa: E402
 from app.tibber import cheapest_hours, upcoming  # noqa: E402
 from app.tuya import build_view, decode_phase  # noqa: E402
 
@@ -176,6 +176,61 @@ class Anzeigehelfer(unittest.TestCase):
         rows = upcoming(today, NOW, hours=5)
         self.assertEqual(len(rows), 5)
         self.assertEqual(rows[0]["hour"], "12:00")  # laufende Stunde bleibt drin
+
+
+
+class Preisquellen(unittest.TestCase):
+    """prices.py — Aggregation, Aufschlag, Preisstufen."""
+
+    def test_viertelstunden_werden_zu_stunden(self) -> None:
+        roh = []
+        for stunde in range(2):
+            for viertel in range(4):
+                roh.append(
+                    {
+                        "startsAt": f"2026-08-16T{stunde:02d}:{viertel * 15:02d}:00+00:00",
+                        "total": 0.20 + viertel * 0.01,
+                        "spot": 0.05,
+                    }
+                )
+        stunden = prices.to_hourly(roh)
+        self.assertEqual(len(stunden), 2)
+        self.assertEqual(stunden[0]["slots"], 4)
+        # Mittel aus 0.20, 0.21, 0.22, 0.23
+        self.assertAlmostEqual(stunden[0]["total"], 0.215, places=6)
+
+    def test_stundenwerte_bleiben_unveraendert(self) -> None:
+        roh = [
+            {"startsAt": "2026-08-16T00:00:00+00:00", "total": 0.30, "spot": 0.10},
+            {"startsAt": "2026-08-16T01:00:00+00:00", "total": 0.25, "spot": 0.08},
+        ]
+        stunden = prices.to_hourly(roh)
+        self.assertEqual(len(stunden), 2)
+        self.assertEqual(stunden[0]["slots"], 1)
+        self.assertAlmostEqual(stunden[0]["total"], 0.30)
+
+    def test_aufschlag_und_mwst(self) -> None:
+        cfg = prices.settings({"markup_ct": 20.0, "vat_percent": 19.0})
+        # 10 ct Boerse + 20 ct Aufschlag = 30 ct netto -> 35,7 ct brutto
+        self.assertAlmostEqual(prices.apply_markup(0.10, cfg) * 100, 35.7, places=4)
+
+    def test_aufschlag_ohne_mwst(self) -> None:
+        cfg = prices.settings({"markup_ct": 0.0, "vat_percent": 0.0})
+        self.assertAlmostEqual(prices.apply_markup(0.1234, cfg), 0.1234, places=6)
+
+    def test_preisstufen_relativ_zum_tagesmittel(self) -> None:
+        entries = [{"total": t} for t in [0.10, 0.20, 0.20, 0.50]]  # Mittel 0.25
+        prices.classify(entries)
+        self.assertEqual(entries[0]["level"], "VERY_CHEAP")   # 0.40 x Mittel
+        self.assertEqual(entries[1]["level"], "CHEAP")        # 0.80 x Mittel
+        self.assertEqual(entries[3]["level"], "VERY_EXPENSIVE")  # 2.00 x Mittel
+
+    def test_unbekannte_quelle_faellt_zurueck(self) -> None:
+        self.assertEqual(prices.settings({"source": "quatsch"})["source"], "awattar_de")
+
+    def test_spot_erkennung(self) -> None:
+        self.assertTrue(prices.is_spot("awattar_de"))
+        self.assertFalse(prices.is_spot("tibber"))
 
 
 if __name__ == "__main__":

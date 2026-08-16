@@ -45,8 +45,16 @@
     <input type="text" id="client_id" name="client_id" required autocomplete="off"
            spellcheck="false" value="{{ client_id|default('', true) }}">
 
-    <label for="client_secret">Access Secret / Client Secret</label>
-    <input type="password" id="client_secret" name="client_secret" required autocomplete="off">
+    <label for="client_secret">Access Secret / Client Secret
+      <div class="hint">
+        Sichtbar, damit du das Eingefügte prüfen kannst — und damit dein
+        Passwortmanager es nicht für ein Anmeldefeld hält.
+      </div>
+    </label>
+    <input type="text" id="client_secret" name="client_secret" required
+           autocomplete="off" spellcheck="false" style="font-family: ui-monospace, monospace"
+           data-bwignore="1" data-lpignore="true" data-1p-ignore data-form-type="other">
+    <div class="hint" id="secret_count"></div>
 
     <label for="region">Rechenzentrum
       <div class="hint">Für Deutschland: Central Europe.</div>
@@ -66,6 +74,27 @@
     </p>
   </div>
 </form>
+
+<script>
+  // Zeichen mitzählen: Tuya-Werte haben feste Laengen, Abweichungen sind fast
+  // immer Kopierfehler (oder ein Passwortmanager, der ins Feld geschrieben hat).
+  const expect = {client_id: 20, client_secret: 32};
+  for (const [id, soll] of Object.entries(expect)) {
+    const feld = document.getElementById(id);
+    const anzeige = document.getElementById(id === 'client_secret' ? 'secret_count' : 'id_count');
+    if (!feld || !anzeige) continue;
+    const pruefe = () => {
+      const n = feld.value.trim().length;
+      if (!n) { anzeige.textContent = ''; return; }
+      anzeige.textContent = n === soll
+        ? `${n} Zeichen — passt`
+        : `${n} Zeichen — erwartet werden ${soll}. Bitte den Wert vollständig kopieren.`;
+      anzeige.style.color = n === soll ? 'var(--ok)' : 'var(--warn)';
+    };
+    feld.addEventListener('input', pruefe);
+    feld.addEventListener('blur', pruefe);
+  }
+</script>
 
 <div class="card">
   <h2>Wie komme ich an Access ID und Secret?</h2>

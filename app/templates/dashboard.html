@@ -70,9 +70,16 @@ async function load() {
   // Preis
   const p = s.price || {};
   document.getElementById('price-now').textContent = p.ct != null ? fmt(p.ct) + ' ct/kWh' : '–';
-  document.getElementById('price-meta').textContent = p.ct != null
-    ? (p.level_label ? p.level_label + ' · ' : '') + 'Stand vor ' + Math.round(p.age_seconds || 0) + ' s'
-    : 'Kein Tibber-Preis. Unter „Einstellungen → Tibber" einrichten.';
+  const preisMeta = document.getElementById('price-meta');
+  if (p.ct != null) {
+    const teile = [];
+    if (p.level_label) teile.push(p.level_label);
+    if (p.is_spot && p.spot_ct != null) teile.push('Börse ' + fmt(p.spot_ct) + ' ct + Aufschlag');
+    teile.push('Stand vor ' + Math.round(p.age_seconds || 0) + ' s');
+    preisMeta.textContent = teile.join(' · ');
+  } else {
+    preisMeta.innerHTML = 'Noch keine Preise. <a href="/prices">Quelle wählen</a>';
+  }
 
   // Schalter
   const auto = s.automation || {};

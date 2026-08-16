@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import automation, store
+from . import automation, prices, store
 from .config import config
 from .tibber import LEVEL_LABELS, LEVELS, TibberClient, TibberError, upcoming
 from .tuya import ENDPOINTS, TuyaClient, TuyaError, build_view
@@ -67,6 +67,7 @@ class State:
 
     def as_dict(self) -> dict[str, Any]:
         auto = automation.settings(config.get("automation"))
+        price_cfg = prices.settings(config.get("price"))
         override_until = float(config.get("override_until") or 0)
         return {
             "ts": self.ts,
@@ -81,6 +82,12 @@ class State:
             "uptime_seconds": round(time.time() - self.started_at),
             **self.view,
             "price": {
+                "source": price_cfg["source"],
+                "source_label": prices.SOURCES.get(price_cfg["source"], {}).get("label", ""),
+                "is_spot": prices.is_spot(price_cfg["source"]),
+                "spot_ct": round((self.prices.get("current", {}).get("spot") or 0) * 100, 2)
+                if self.prices.get("current", {}).get("spot") is not None
+                else None,
                 "current": self.prices.get("current", {}),
                 "ct": round((self.prices.get("current", {}).get("total") or 0) * 100, 2)
                 if self.prices.get("current")
@@ -178,18 +185,20 @@ async def poll_device() -> None:
 
 
 async def poll_prices(force: bool = False) -> None:
-    tibber = config.get("tibber") or {}
-    if not (tibber.get("token") and tibber.get("home_id")):
-        return
+    price_cfg = prices.settings(config.get("price"))
+    if price_cfg["source"] == "tibber":
+        tibber = config.get("tibber") or {}
+        if not (tibber.get("token") and tibber.get("home_id")):
+            return
     if not force and time.time() - state.prices_ts < PRICE_REFRESH_SECONDS:
         return
     try:
-        state.prices = await tibber_client().prices(tibber["home_id"])
+        state.prices = await prices.fetch(price_cfg, config.get("tibber") or {})
         state.prices_ts = time.time()
         state.price_error = ""
     except Exception as exc:
         state.price_error = str(exc)
-        log.warning("Tibber-Preisabruf fehlgeschlagen: %s", exc)
+        log.warning("Preisabruf (%s) fehlgeschlagen: %s", price_cfg["source"], exc)
 
 
 async def apply_automation() -> None:
@@ -551,7 +560,58 @@ async def devices_select(request: Request, device_id: str = Form(...), device_na
     except Exception as exc:
         state.ok = False
         state.error = str(exc)
-    return RedirectResponse("/tibber", status_code=303)
+    return RedirectResponse("/prices", status_code=303)
+
+
+# --------------------------------------------------------------- Preisquelle
+
+
+@app.get("/prices", response_class=HTMLResponse)
+async def prices_page(request: Request, saved: str = ""):
+    if (redirect := guard(request)) is not None:
+        return redirect
+    return page(
+        request,
+        "prices.html",
+        price=prices.settings(config.get("price")),
+        sources=prices.SOURCES,
+        tibber=config.get("tibber") or {},
+        preview=state.prices.get("today", []) if state.prices else [],
+        price_error=state.price_error,
+        saved=saved,
+    )
+
+
+@app.post("/prices")
+async def prices_save(
+    request: Request,
+    source: str = Form("awattar_de"),
+    markup_ct: float = Form(20.0),
+    vat_percent: float = Form(19.0),
+):
+    require_login(request)
+    cfg = prices.settings(
+        {"source": source, "markup_ct": markup_ct, "vat_percent": vat_percent}
+    )
+    config.set("price", cfg)
+    config.save()
+
+    # Tibber braucht erst noch Token und Zuhause, bevor ein Abruf klappen kann.
+    if cfg["source"] == "tibber":
+        tibber = config.get("tibber") or {}
+        if not (tibber.get("token") and tibber.get("home_id")):
+            return RedirectResponse("/tibber", status_code=303)
+
+    state.prices = {}
+    state.prices_ts = 0.0
+    await poll_prices(force=True)
+    if state.price_error:
+        return RedirectResponse("/prices?saved=error", status_code=303)
+    try:
+        await apply_automation()
+    except Exception as exc:
+        log.warning("Automatik nach Quellenwechsel fehlgeschlagen: %s", exc)
+    return RedirectResponse("/automation", status_code=303)
 
 
 # -------------------------------------------------------------------- Tibber
@@ -592,6 +652,11 @@ async def tibber_save(
     state.prices = {}
     state.prices_ts = 0.0
     if tibber.get("token") and tibber.get("home_id"):
+        # Wer hier Token und Zuhause hinterlegt, will Tibber auch als Quelle.
+        price_cfg = prices.settings(config.get("price"))
+        price_cfg["source"] = "tibber"
+        config.set("price", price_cfg)
+        config.save()
         await poll_prices(force=True)
         if state.price_error:
             return RedirectResponse("/tibber?saved=error", status_code=303)

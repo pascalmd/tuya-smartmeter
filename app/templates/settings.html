@@ -10,7 +10,7 @@
   <h2>Bereiche</h2>
   <p style="display:flex; gap:10px; flex-wrap:wrap; margin:0">
     <a class="btn secondary" href="/devices">Gerät wechseln</a>
-    <a class="btn secondary" href="/tibber">Tibber</a>
+    <a class="btn secondary" href="/prices">Preisquelle</a>
     <a class="btn secondary" href="/automation">Automatik</a>
   </p>
 </div>
@@ -24,7 +24,9 @@
     <label for="client_secret">Access Secret
       <div class="hint">Leer lassen, um das gespeicherte Secret zu behalten.</div>
     </label>
-    <input type="password" id="client_secret" name="client_secret" placeholder="••••••••••••" autocomplete="off">
+    <input type="text" id="client_secret" name="client_secret" placeholder="unverändert lassen"
+           autocomplete="off" spellcheck="false" style="font-family: ui-monospace, monospace"
+           data-bwignore="1" data-lpignore="true" data-1p-ignore data-form-type="other">
 
     <label for="region">Rechenzentrum</label>
     <select id="region" name="region">

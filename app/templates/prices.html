@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Preisquelle{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Schritt 3 von 4 — Woher kommen die Strompreise?</h2>
+  <p class="muted">
+    Die App braucht stündliche Preise, um entscheiden zu können. Es gibt zwei Wege:
+    kostenlose Börsendaten ohne Anmeldung, oder — wenn du einen dynamischen Tarif
+    hast — deinen echten Endkundenpreis.
+  </p>
+</div>
+
+{% if saved == 'error' %}
+<div class="msg err">Gespeichert, aber der Preisabruf hat nicht geklappt: {{ price_error }}</div>
+{% endif %}
+{% if saved == '1' %}<div class="msg ok">Gespeichert.</div>{% endif %}
+
+<form method="post">
+  <div class="card">
+    <h2>Quelle</h2>
+    {% for key, src in sources.items() %}
+      <label style="display:flex; gap:10px; align-items:flex-start; margin:10px 0; font-weight:400; cursor:pointer">
+        <input type="radio" name="source" value="{{ key }}" style="width:auto; margin-top:5px"
+               {% if price.source == key %}checked{% endif %} onchange="toggleSpot()">
+        <span>
+          <strong style="font-weight:650">{{ src.label }}</strong>
+          <div class="hint" style="margin-top:2px">{{ src.note }}</div>
+        </span>
+      </label>
+    {% endfor %}
+
+    {% if not tibber.get('token') %}
+      <div class="hint" style="margin-top:10px">
+        Für Tibber brauchst du ein Konto mit aktivem Vertrag. Nach dem Speichern
+        fragt die App nach dem Zugriffstoken.
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card" id="spot-block">
+    <h2>Aufschlag auf den Börsenpreis</h2>
+    <div class="msg warn">
+      Börsendaten sind der reine Beschaffungspreis. Was du zahlst, liegt deutlich
+      höher — Netzentgelte, Umlagen, Stromsteuer und die Marge deines Anbieters
+      kommen dazu. Mit diesen beiden Werten rechnet die App auf einen realistischen
+      Endpreis hoch.
+    </div>
+
+    <label for="markup_ct">Aufschlag in ct/kWh (netto)</label>
+    <input type="number" id="markup_ct" name="markup_ct" step="0.1" min="0" max="200"
+           value="{{ '%.1f'|format(price.markup_ct) }}">
+    <div class="hint">
+      Für Deutschland sind 18–22 ct ein brauchbarer Anhaltspunkt. Genau wird es,
+      wenn du in deiner Stromrechnung nachsiehst: Endpreis minus Börsenpreis.
+    </div>
+
+    <label for="vat_percent">Mehrwertsteuer in %</label>
+    <input type="number" id="vat_percent" name="vat_percent" step="0.1" min="0" max="100"
+           value="{{ '%.1f'|format(price.vat_percent) }}">
+
+    <div class="hint" style="margin-top:12px">
+      Die Aufschläge verschieben alle Stunden gleichmäßig. Für die Regel
+      „günstigste Stunden" ändert sich dadurch nichts — für eine feste
+      Preisschwelle dagegen schon.
+    </div>
+  </div>
+
+  <div class="card">
+    <p style="margin:0"><button type="submit">Speichern und weiter</button></p>
+  </div>
+</form>
+
+{% if preview %}
+<div class="card">
+  <h2>Heutige Preise dieser Quelle</h2>
+  <div style="display:flex; gap:3px; align-items:flex-end; overflow-x:auto; padding-bottom:6px">
+    {% set hoechst = preview|map(attribute='total')|select('number')|list|max %}
+    {% for row in preview %}
+      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; font-size:11px; color:var(--muted)"
+           title="{{ '%.2f'|format(row.total * 100) }} ct/kWh">
+        <div>{{ '%.0f'|format(row.total * 100) }}</div>
+        <div style="width:22px; border-radius:3px 3px 0 0; background:var(--accent);
+                    height:{{ [8, (row.total / hoechst * 80)|round|int]|max }}px;
+                    opacity:{{ '1' if row.level in ['VERY_CHEAP','CHEAP'] else '.4' }}"></div>
+        <div>{{ row.startsAt[11:13] }}</div>
+      </div>
+    {% endfor %}
+  </div>
+  <p class="muted" style="margin-bottom:0">
+    Werte in ct/kWh inklusive Aufschlag. Kräftige Balken sind die günstigen Stunden.
+  </p>
+</div>
+{% endif %}
+
+<script>
+  function toggleSpot() {
+    const gewaehlt = document.querySelector('input[name="source"]:checked');
+    const spot = gewaehlt && gewaehlt.value !== 'tibber';
+    document.getElementById('spot-block').style.display = spot ? '' : 'none';
+  }
+  toggleSpot();
+</script>
+{% endblock %}
