@@ -262,7 +262,7 @@ _LABELS = {
     "phase_b": "Phase B",
     "phase_c": "Phase C",
     "balance_energy": "Restguthaben",
-    "charge_energy": "Aufladung",
+    "charge_energy": "Guthaben aufgebucht",
     "temp_current": "Temperatur",
     "leakage_current": "Fehlerstrom",
     "fault": "Stoerung",
