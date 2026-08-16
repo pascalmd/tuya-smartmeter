@@ -74,7 +74,7 @@ Im Custom-App-Fenster auf **Install via YAML** umschalten und das hier einfügen
 ```yaml
 services:
   tuya-smartmeter:
-    image: ghcr.io/DEIN-NAME/tuya-smartmeter:latest
+    image: ghcr.io/pascalmd/tuya-smartmeter:latest
     restart: unless-stopped
     ports:
       - "8099:8099"
@@ -84,18 +84,20 @@ services:
       TZ: Europe/Berlin
 ```
 
-Zwei Zeilen musst du anpassen:
+Eine Zeile musst du anpassen:
 
-- `image:` — die Adresse des Images (siehe README, Abschnitt „Image bereitstellen")
 - `/mnt/DEIN-POOL/apps/tuya-smartmeter` — ein Ordner auf deinem Pool.
   Lege ihn vorher unter **Datasets** an, sonst legt TrueNAS ihn als Verzeichnis an.
+
+Die Image-Adresse stimmt so — das Image liegt fertig auf GitHub und muss nicht
+selbst gebaut werden.
 
 ### Weg B — über das Formular
 
 | Feld | Wert |
 |------|------|
 | Application Name | `tuya-smartmeter` |
-| Image Repository | `ghcr.io/DEIN-NAME/tuya-smartmeter` |
+| Image Repository | `ghcr.io/pascalmd/tuya-smartmeter` |
 | Image Tag | `latest` |
 | Port Forwarding → Container Port | `8099` |
 | Port Forwarding → Node Port | `8099` (oder ein freier Port deiner Wahl) |

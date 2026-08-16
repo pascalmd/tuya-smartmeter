@@ -1,6 +1,6 @@
 services:
   tuya-smartmeter:
-    image: ghcr.io/pdreisbach/tuya-smartmeter:latest
+    image: ghcr.io/pascalmd/tuya-smartmeter:latest
     container_name: tuya-smartmeter
     restart: unless-stopped
     ports:
