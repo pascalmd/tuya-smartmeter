@@ -70,23 +70,54 @@
 
 <div class="card">
   <h2>Tuya-Testzeitraum</h2>
-  {% if trial.known %}
+  {% if trial.exact %}
     <p class="muted" style="margin-top:0">
-      Beobachtet seit <strong>{{ trial.days }} Tagen</strong>.
-      {% if trial.warn %}
-        Zeit, ihn zu verlängern.
+      {% if trial.days_left < 0 %}
+        Läuft seit <strong>{{ -trial.days_left }} Tagen</strong> ab.
       {% else %}
-        Erinnerung in {{ trial.days_until_reminder }} Tagen.
+        Endet am <strong>{{ trial.expires }}</strong> — noch
+        <strong>{{ trial.days_left }} Tage</strong>.
+        {% if not trial.warn %}Erinnerung 10 Tage vorher.{% endif %}
       {% endif %}
+    </p>
+  {% elif trial.known %}
+    <p class="muted" style="margin-top:0">
+      Kein Ablaufdatum hinterlegt — geschätzt anhand der Laufzeit:
+      beobachtet seit <strong>{{ trial.days }} Tagen</strong>,
+      {% if trial.warn %}Zeit zu verlängern.{% else %}Erinnerung in {{ trial.days_until_reminder }} Tagen.{% endif %}
     </p>
   {% else %}
     <p class="muted" style="margin-top:0">Noch keine Beobachtung gestartet.</p>
   {% endif %}
   <p class="muted">
-    Tuya befristet kostenlose Cloud-Projekte und sagt über die Schnittstelle
-    nicht, wann Schluss ist. Verlängert wird unter <code>iot.tuya.com</code> →
-    dein Projekt → <em>Service</em> → <em>Extend Trial</em>. Danach hier den
-    Zähler zurücksetzen.
+    Tuya befristet kostenlose Cloud-Projekte und verrät über die Schnittstelle
+    nicht, wann Schluss ist. Das Datum steht in deinem Projekt auf
+    <a href="https://iot.tuya.com/cloud/" target="_blank" rel="noopener"><code>iot.tuya.com</code></a>
+    unter <em>Service</em>. Trag es hier ein, dann wird exakt gewarnt statt
+    geschätzt.
+  </p>
+
+  <label for="trial_expires">Testzeitraum endet am
+    <div class="hint">Format JJJJ-MM-TT. Leer lassen, wenn du es nicht weißt.</div>
+  </label>
+  <form method="post" action="/settings" style="margin-bottom:14px">
+    <input type="hidden" name="client_id" value="{{ cfg.tuya.get('client_id', '') }}">
+    <input type="hidden" name="region" value="{{ cfg.tuya.get('region', 'eu') }}">
+    <input type="hidden" name="refresh_seconds" value="{{ cfg.get('refresh_seconds', 10) }}">
+    <input type="hidden" name="history_seconds" value="{{ cfg.get('history_seconds', 60) }}">
+    <input type="date" id="trial_expires" name="trial_expires" value="{{ cfg.get('trial_expires', '') }}">
+    <button type="submit" style="margin-top:10px">Datum speichern</button>
+  </form>
+
+  <div class="msg warn" style="font-size:14px">
+    Die Verlängerung ist ein <strong>Antrag</strong>, kein Klick: Tuya prüft ihn
+    und antwortet laut eigenem Support innerhalb eines Werktages. Verlängert wird
+    um bis zu sechs Monate. Deshalb rechtzeitig stellen, nicht am letzten Tag.
+  </div>
+
+  <p class="muted">
+    Nach erfolgter Verlängerung entweder das neue Datum oben eintragen oder — wenn
+    du keins hast — hier den Zähler zurücksetzen:
   </p>
   <form method="post" action="/trial-verlaengert">
     <button class="secondary" type="submit">Verlängert — Zähler zurücksetzen</button>

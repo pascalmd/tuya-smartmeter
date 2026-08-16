@@ -505,27 +505,54 @@ def page(request: Request, name: str, **ctx: Any) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(request, name, {"cfg": config, "show_nav": True, **ctx})
 
 
+# Die Verlaengerung ist bei Tuya ein Antrag, kein Klick - laut Support dauert
+# die Bearbeitung bis zu einen Werktag. Deshalb nicht auf den letzten Druecker
+# erinnern, sondern mit Puffer.
+TRIAL_VORWARNUNG_TAGE = 10
+
+
 def trial_status() -> dict[str, Any]:
     """Erinnerung an den ablaufenden Tuya-Testzeitraum.
 
-    Tuya befristet kostenlose Cloud-Projekte und verraet ueber die API nicht,
-    wann Schluss ist — es hoert einfach auf zu funktionieren. Deshalb zaehlen wir
-    selbst ab dem Tag, an dem die Zugangsdaten zuletzt bestaetigt wurden, und
-    erinnern rechtzeitig. Wer verlaengert hat, setzt den Zaehler per Klick zurueck.
+    Zwei Betriebsarten. Wer das Ablaufdatum aus seinem Tuya-Projekt eintraegt,
+    bekommt eine exakte Warnung. Ohne Datum zaehlen wir ab dem Tag, an dem die
+    Zugangsdaten zuletzt bestaetigt wurden - ungenau, aber besser als eine Frist,
+    die stillschweigend ablaeuft. Die API verraet das Datum nicht.
     """
+    abgelaufen_laut_fehler = bool(
+        state.error and ("1106" in state.error or "1114" in state.error)
+    )
+
+    datum = (config.get("trial_expires") or "").strip()
+    if datum:
+        try:
+            ablauf = dt.date.fromisoformat(datum)
+        except ValueError:
+            ablauf = None
+        if ablauf:
+            rest = (ablauf - dt.date.today()).days
+            return {
+                "known": True,
+                "exact": True,
+                "expires": datum,
+                "days_left": rest,
+                "warn": rest <= TRIAL_VORWARNUNG_TAGE,
+                "expired": rest < 0 or abgelaufen_laut_fehler,
+            }
+
     seit = float(config.get("tuya_setup_ts") or 0)
     if not seit:
-        return {"known": False, "days": 0, "warn": False, "expired": False}
+        return {"known": False, "exact": False, "days": 0, "warn": False, "expired": False}
 
     tage = (time.time() - seit) / 86400
     grenze = int(config.get("trial_reminder_days", 25) or 25)
-    abgelaufen = bool(state.error and ("1106" in state.error or "1114" in state.error))
     return {
         "known": True,
+        "exact": False,
         "days": int(tage),
         "days_until_reminder": max(0, grenze - int(tage)),
         "warn": tage >= grenze,
-        "expired": abgelaufen,
+        "expired": abgelaufen_laut_fehler,
     }
 
 
@@ -922,6 +949,7 @@ async def settings_save(
     region: str = Form("eu"),
     refresh_seconds: int = Form(10),
     history_seconds: int = Form(60),
+    trial_expires: str = Form(""),
     password: str = Form(""),
     password2: str = Form(""),
 ):
@@ -955,6 +983,14 @@ async def settings_save(
     config.set_tuya(client_id, secret, region)
     config.set("refresh_seconds", max(MIN_INTERVAL, min(MAX_INTERVAL, int(refresh_seconds))))
     config.set("history_seconds", max(0, min(3600, int(history_seconds))))
+
+    datum = (trial_expires or "").strip()
+    if datum:
+        try:
+            dt.date.fromisoformat(datum)
+        except ValueError:
+            return fail("Das Ablaufdatum muss im Format JJJJ-MM-TT stehen.")
+    config.set("trial_expires", datum)
     config.save()
     reset_client()
     state.spec = {}

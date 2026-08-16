@@ -28,7 +28,8 @@ _DEFAULTS: dict[str, Any] = {
     "refresh_seconds": 10,
     "history_seconds": 60,
     "tuya_setup_ts": 0,        # wann die Tuya-Zugangsdaten zuletzt bestaetigt wurden
-    "trial_reminder_days": 25,  # ab wann an die Verlaengerung erinnert wird
+    "trial_reminder_days": 25,  # Schaetzmodus: ab wann erinnert wird
+    "trial_expires": "",        # Exaktmodus: Ablaufdatum aus dem Tuya-Projekt (JJJJ-MM-TT)
     "tibber": {"token": "", "home_id": "", "home_label": ""},
     "price": {},
     "automation": {},
