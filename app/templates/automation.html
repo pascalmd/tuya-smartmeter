@@ -67,6 +67,28 @@
     <div class="hint">Die x günstigsten Stunden des Tages sind ein, alle anderen aus.</div>
   </div>
 
+  <div class="card mode-block" data-mode="cheapest_block">
+    <h2>Günstigster Block am Stück</h2>
+    <label for="cheapest_hours_block">Länge des Blocks in Stunden</label>
+    <input type="number" id="cheapest_hours_block" name="cheapest_hours" min="0" max="24"
+           value="{{ auto.cheapest_hours }}">
+    <div class="hint">
+      Sucht die günstigsten Stunden <strong>am Stück</strong> statt über den Tag
+      verteilt. Es gibt genau ein Einschalten und ein Ausschalten.
+    </div>
+    <div class="note-inline">
+      Gedacht für alles, was am Stück laufen soll. Manche Verbraucher nehmen den
+      Betrieb nach einer Unterbrechung nicht von selbst wieder auf, und jedes
+      Schalten unter Last kostet Lebensdauer am Relais. Der Block darf über
+      Mitternacht gehen, sobald die Preise für morgen vorliegen (nachmittags
+      gegen 14 Uhr).
+      <br><br>
+      Empfehlung: zusammen mit einer <strong>Mindestlaufzeit</strong> weiter unten
+      verwenden. Kommen neue Tagespreise herein, könnte die App sonst mitten im
+      Block auf einen noch günstigeren umschwenken — die Mindestlaufzeit verhindert das.
+    </div>
+  </div>
+
   <div class="card mode-block" data-mode="level">
     <h2>Preisstufen</h2>
     <div class="hint" style="margin-bottom:8px">
@@ -88,6 +110,15 @@
     <label for="max_off_hours">Sicherheitsnetz: nie länger aus als … Stunden</label>
     <input type="number" id="max_off_hours" name="max_off_hours" min="0" max="72" value="{{ auto.max_off_hours }}">
     <div class="hint">0 = kein Sicherheitsnetz. Sinnvoll, damit ein teurer Tag nicht dauerhaft abschaltet.</div>
+
+    <label for="min_on_minutes">Mindestens … Minuten eingeschaltet lassen</label>
+    <input type="number" id="min_on_minutes" name="min_on_minutes" min="0" max="1440"
+           value="{{ auto.min_on_minutes }}">
+    <div class="hint">
+      Einmal eingeschaltet, bleibt es so lange an — auch wenn der Preis
+      zwischendurch steigt. Wichtig für alles, was nicht nach ein paar Minuten
+      wieder abgewürgt werden soll. 0 = aus.
+    </div>
 
     <label for="min_off_minutes">Mindestens … Minuten aus lassen</label>
     <input type="number" id="min_off_minutes" name="min_off_minutes" min="0" max="720" value="{{ auto.min_off_minutes }}">
@@ -133,6 +164,17 @@
   </p>
 </div>
 {% endif %}
+
+<style>
+  .note-inline {
+    margin-top: 12px;
+    padding: 11px 14px;
+    border-left: 3px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+</style>
 
 <script>
   function showMode(mode) {

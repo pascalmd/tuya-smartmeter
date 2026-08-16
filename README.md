@@ -97,11 +97,19 @@ Tagesmittel, weil nur Tibber sie mitliefert.
 | Modus | Verhalten |
 |-------|-----------|
 | `threshold` | EIN, solange der aktuelle Preis ≤ Schwelle (ct/kWh) |
-| `cheapest` | EIN in den n günstigsten Stunden des Tages |
+| `cheapest` | EIN in den n günstigsten Stunden des Tages (verstreut) |
+| `cheapest_block` | EIN im günstigsten zusammenhängenden Block von n Stunden — genau ein Ein- und Ausschalten, darf über Mitternacht gehen |
 | `level` | EIN bei den ausgewählten Preisstufen (sehr günstig … sehr teuer) |
 
-Schutzmechanismen: Sicherheitsnetz (Zwangs-EIN nach x Stunden aus),
-Mindest-Aus-Zeit gegen Flattern, Automatikpause nach Handbedienung.
+Schutzmechanismen (alle abschaltbar): Sicherheitsnetz (Zwangs-EIN nach x Stunden
+aus), Mindestlaufzeit, Mindest-Aus-Zeit gegen Flattern, Automatikpause nach
+Handbedienung — auch bei Schaltvorgängen aus der Hersteller-App oder am Gerät.
+
+**Für Verbraucher, die am Stück laufen sollen:** `cheapest_block` zusammen mit
+einer Mindestlaufzeit. Die verstreute Auswahl der billigsten Stunden ist
+geringfügig günstiger, erzeugt aber bis zu n Unterbrechungen — und nicht jeder
+Verbraucher nimmt den Betrieb selbsttätig wieder auf. Jedes Schalten unter Last
+kostet zudem Relais-Lebensdauer.
 
 ## JSON-API
 

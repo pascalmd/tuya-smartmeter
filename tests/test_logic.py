@@ -280,5 +280,76 @@ class Fremdschaltung(unittest.TestCase):
         self.assertEqual(self.main.config.get("override_until"), 0)
 
 
+class BlockModus(unittest.TestCase):
+    """Guenstigster zusammenhaengender Block."""
+
+    def setUp(self) -> None:
+        self.cfg = automation.settings(
+            {"enabled": True, "mode": "cheapest_block", "cheapest_hours": 3}
+        )
+        # Billig am Stueck: 04,05,06 (Summe 0.33). Einzelne Ausreisser bei 12 und 20,
+        # die die verstreute Auswahl nehmen wuerde, den Block aber nicht.
+        self.today = price_day(
+            [0.40, 0.39, 0.38, 0.37, 0.11, 0.11, 0.11, 0.36, 0.35, 0.34, 0.33, 0.32,
+             0.05, 0.31, 0.30, 0.29, 0.28, 0.27, 0.26, 0.25, 0.05, 0.24, 0.23, 0.22]
+        )
+        self.frueh = dt.datetime(2026, 8, 16, 0, 30, tzinfo=dt.timezone.utc)
+
+    def test_block_ist_zusammenhaengend(self) -> None:
+        block = automation.cheapest_block(self.today, 3, self.frueh)
+        stunden = sorted(int(s[11:13]) for s in block)
+        self.assertEqual(stunden, [4, 5, 6])
+
+    def test_einzelne_ausreisser_werden_nicht_gepflueckt(self) -> None:
+        # Die verstreute Auswahl wuerde 12, 20 und eine 0.11er nehmen.
+        verstreut = sorted(int(s[11:13]) for s in cheapest_hours(self.today, 3))
+        block = sorted(int(s[11:13]) for s in automation.cheapest_block(self.today, 3, self.frueh))
+        self.assertIn(12, verstreut)
+        self.assertNotIn(12, block)
+
+    def test_stunde_im_block_schaltet_ein(self) -> None:
+        prices = {"current": dict(self.today[5]), "today": self.today, "tomorrow": []}
+        entscheidung = automation.decide(prices, self.cfg, self.frueh)
+        self.assertTrue(entscheidung.desired)
+
+    def test_stunde_ausserhalb_schaltet_aus(self) -> None:
+        prices = {"current": dict(self.today[12]), "today": self.today, "tomorrow": []}
+        self.assertFalse(automation.decide(prices, self.cfg, self.frueh).desired)
+
+    def test_vergangene_bloecke_scheiden_aus(self) -> None:
+        # Um 20:30 ist der 04-06-Block vorbei; es muss ein spaeterer gewaehlt werden.
+        spaet = dt.datetime(2026, 8, 16, 20, 30, tzinfo=dt.timezone.utc)
+        block = automation.cheapest_block(self.today, 3, spaet)
+        stunden = sorted(int(s[11:13]) for s in block)
+        self.assertTrue(min(stunden) >= 19, f"Block liegt in der Vergangenheit: {stunden}")
+
+    def test_luecken_werden_nicht_ueberbrueckt(self) -> None:
+        # Stunde 2 fehlt - 1,3,4 darf kein gueltiger Block sein.
+        loechrig = [e for e in price_day([0.10] * 24) if int(e["startsAt"][11:13]) != 2]
+        block = automation.cheapest_block(loechrig, 3, self.frueh)
+        stunden = sorted(int(s[11:13]) for s in block)
+        for a, b in zip(stunden, stunden[1:]):
+            self.assertEqual(b - a, 1, f"Block hat eine Luecke: {stunden}")
+
+    def test_zu_wenige_daten(self) -> None:
+        self.assertEqual(automation.cheapest_block(price_day([0.2] * 2), 5, self.frueh), set())
+
+    def test_block_ueber_mitternacht(self) -> None:
+        heute = price_day([0.40] * 24)
+        morgen = price_day([0.40] * 24, day="2026-08-17")
+        # Guenstig: heute 23 Uhr und morgen 00/01 Uhr
+        heute[23]["total"] = 0.05
+        morgen[0]["total"] = 0.05
+        morgen[1]["total"] = 0.05
+        block = automation.cheapest_block(heute + morgen, 3, self.frueh)
+        self.assertEqual(len(block), 3)
+        self.assertIn(heute[23]["startsAt"], block)
+        self.assertIn(morgen[1]["startsAt"], block)
+
+    def test_mindestlaufzeit_wird_normalisiert(self) -> None:
+        self.assertEqual(automation.settings({"min_on_minutes": -5})["min_on_minutes"], 0)
+        self.assertEqual(automation.settings({"min_on_minutes": 9999})["min_on_minutes"], 1440)
+
+
 if __name__ == "__main__":
     unittest.main()

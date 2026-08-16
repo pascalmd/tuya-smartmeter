@@ -64,6 +64,7 @@ class State:
         self.last_action_ts: float = 0.0
         self.last_action: str = ""
         self.off_since: float | None = None
+        self.on_since: float | None = None
 
         # Schaltzustand nachhalten, um fremde Eingriffe zu erkennen
         self.last_seen: bool | None = None
@@ -195,9 +196,13 @@ async def poll_device() -> None:
     # Aus-Zeit mitschreiben, damit das Sicherheitsnetz greifen kann.
     auto = automation.settings(config.get("automation"))
     current = state.switch_value(auto["switch_code"])
-    if current is False and state.off_since is None:
-        state.off_since = time.time()
+    if current is False:
+        if state.off_since is None:
+            state.off_since = time.time()
+        state.on_since = None
     elif current is True:
+        if state.on_since is None:
+            state.on_since = time.time()
         state.off_since = None
 
     if current is not None:
@@ -303,6 +308,18 @@ async def apply_automation() -> None:
         and (time.time() - state.off_since) < auto["min_off_minutes"] * 60
     ):
         state.last_decision["reason"] += " — Mindest-Aus-Zeit noch nicht erreicht"
+        return
+
+    # Mindestlaufzeit: einmal Eingeschaltetes eine Weile laufen lassen - fuer
+    # Verbraucher, die eine kurze Unterbrechung nicht gut vertragen.
+    if (
+        decision.desired is False
+        and auto["min_on_minutes"]
+        and state.on_since
+        and (time.time() - state.on_since) < auto["min_on_minutes"] * 60
+    ):
+        rest = round(auto["min_on_minutes"] - (time.time() - state.on_since) / 60)
+        state.last_decision["reason"] += f" — Mindestlaufzeit laeuft noch ({rest} min)"
         return
 
     try:
@@ -790,6 +807,7 @@ async def automation_save(request: Request):
             "cheapest_hours": int(form.get("cheapest_hours") or 0),
             "levels": form.getlist("levels"),
             "min_off_minutes": int(form.get("min_off_minutes") or 0),
+            "min_on_minutes": int(form.get("min_on_minutes") or 0),
             "max_off_hours": int(form.get("max_off_hours") or 0),
             "override_minutes": int(form.get("override_minutes") or 0),
         }

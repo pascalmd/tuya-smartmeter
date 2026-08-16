@@ -20,6 +20,7 @@ DEFAULTS: dict[str, Any] = {
     "cheapest_hours": 6,          # Anzahl guenstigster Stunden pro Tag
     "levels": ["VERY_CHEAP", "CHEAP"],
     "min_off_minutes": 0,         # Schutz gegen Flattern
+    "min_on_minutes": 0,          # Mindestlaufzeit fuer Verbraucher, die durchlaufen sollen
     "max_off_hours": 0,           # 0 = aus; sonst Zwangs-EIN nach X Stunden
     "override_minutes": 60,       # Pause der Automatik nach Handbedienung
 }
@@ -27,6 +28,7 @@ DEFAULTS: dict[str, Any] = {
 MODE_LABELS = {
     "threshold": "Preisschwelle",
     "cheapest": "Guenstigste Stunden",
+    "cheapest_block": "Guenstigster Block am Stueck",
     "level": "Preisstufe",
 }
 
@@ -38,6 +40,7 @@ def settings(raw: dict[str, Any] | None) -> dict[str, Any]:
     merged["threshold_ct"] = float(merged.get("threshold_ct") or 0)
     merged["cheapest_hours"] = max(0, min(24, int(merged.get("cheapest_hours") or 0)))
     merged["min_off_minutes"] = max(0, min(720, int(merged.get("min_off_minutes") or 0)))
+    merged["min_on_minutes"] = max(0, min(1440, int(merged.get("min_on_minutes") or 0)))
     merged["max_off_hours"] = max(0, min(72, int(merged.get("max_off_hours") or 0)))
     merged["override_minutes"] = max(0, min(1440, int(merged.get("override_minutes") or 0)))
     if merged["mode"] not in MODE_LABELS:
@@ -45,6 +48,57 @@ def settings(raw: dict[str, Any] | None) -> dict[str, Any]:
     levels = [lvl for lvl in (merged.get("levels") or []) if lvl in LEVEL_LABELS]
     merged["levels"] = levels or list(DEFAULTS["levels"])
     return merged
+
+
+def cheapest_block(
+    entries: list[dict[str, Any]], hours: int, now: dt.datetime
+) -> set[str]:
+    """startsAt-Werte des guenstigsten zusammenhaengenden Blocks.
+
+    Fuer Verbraucher, die am Stueck laufen sollen. Manche nehmen den Betrieb
+    nach einer Unterbrechung nicht selbsttaetig wieder auf, und jedes Schalten
+    unter Last kostet Relais-Lebensdauer. Die verstreute Auswahl der n billigsten
+    Stunden ist geringfuegig guenstiger, erzeugt aber bis zu n Unterbrechungen;
+    hier gibt es genau eine Ein- und eine Ausschaltung.
+
+    Bloecke, die bereits komplett vorbei sind, scheiden aus. Loecken in der
+    Preisreihe werden uebersprungen, damit kein Block ueber fehlende Stunden
+    hinweg gebildet wird.
+    """
+    if hours <= 0:
+        return set()
+
+    usable = sorted(
+        (e for e in entries if e.get("total") is not None),
+        key=lambda e: e["startsAt"],
+    )
+    if len(usable) < hours:
+        return set()
+
+    bestes: tuple[float, list[dict[str, Any]]] | None = None
+    for i in range(len(usable) - hours + 1):
+        fenster = usable[i : i + hours]
+
+        try:
+            zeiten = [parse_ts(e["startsAt"]) for e in fenster]
+        except ValueError:
+            continue
+
+        # Nur lueckenlose Bloecke: jede Stunde muss auf die vorige folgen.
+        if any(
+            (zeiten[k + 1] - zeiten[k]) != dt.timedelta(hours=1)
+            for k in range(len(zeiten) - 1)
+        ):
+            continue
+
+        if zeiten[-1] + dt.timedelta(hours=1) <= now:
+            continue  # Block liegt vollstaendig in der Vergangenheit
+
+        summe = sum(e["total"] for e in fenster)
+        if bestes is None or summe < bestes[0]:
+            bestes = (summe, fenster)
+
+    return {e["startsAt"] for e in bestes[1]} if bestes else set()
 
 
 class Decision:
@@ -121,6 +175,24 @@ def decide(
             price_ct,
         )
 
+    if mode == "cheapest_block":
+        count = cfg["cheapest_hours"]
+        reihe = list(prices.get("today") or []) + list(prices.get("tomorrow") or [])
+        block = cheapest_block(reihe, count, now)
+        starts_at = current.get("startsAt")
+        on = starts_at in block
+        if block:
+            beginn = min(block)
+            hinweis = f"Block ab {parse_ts(beginn).strftime('%H:%M')}, {count} h"
+        else:
+            hinweis = "kein Block bestimmbar"
+        return Decision(
+            on,
+            f"Diese Stunde liegt {'im' if on else 'nicht im'} guenstigsten "
+            f"{count}-Stunden-Block ({hinweis})",
+            price_ct,
+        )
+
     if mode == "level":
         level = current.get("level")
         on = level in cfg["levels"]
@@ -148,12 +220,14 @@ def schedule_preview(
     if not entries:
         return []
 
+    now = dt.datetime.now(dt.timezone.utc)
     cheap: set[str] = set()
     if cfg["mode"] == "cheapest":
         cheap = cheapest_hours(prices.get("today") or [], cfg["cheapest_hours"])
         cheap |= cheapest_hours(prices.get("tomorrow") or [], cfg["cheapest_hours"])
+    elif cfg["mode"] == "cheapest_block":
+        cheap = cheapest_block(entries, cfg["cheapest_hours"], now)
 
-    now = dt.datetime.now(dt.timezone.utc)
     out: list[dict[str, Any]] = []
     for entry in entries:
         try:
@@ -169,7 +243,7 @@ def schedule_preview(
 
         if cfg["mode"] == "threshold":
             on = price_ct <= cfg["threshold_ct"]
-        elif cfg["mode"] == "cheapest":
+        elif cfg["mode"] in ("cheapest", "cheapest_block"):
             on = entry["startsAt"] in cheap
         else:
             on = entry.get("level") in cfg["levels"]
