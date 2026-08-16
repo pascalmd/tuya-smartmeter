@@ -27,6 +27,8 @@ _DEFAULTS: dict[str, Any] = {
     "api_token": "",
     "refresh_seconds": 10,
     "history_seconds": 60,
+    "tuya_setup_ts": 0,        # wann die Tuya-Zugangsdaten zuletzt bestaetigt wurden
+    "trial_reminder_days": 25,  # ab wann an die Verlaengerung erinnert wird
     "tibber": {"token": "", "home_id": "", "home_label": ""},
     "price": {},
     "automation": {},

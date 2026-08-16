@@ -118,6 +118,7 @@ class State:
                 if self.prices
                 else [],
             },
+            "trial": trial_status(),
             "automation": {
                 **auto,
                 "mode_label": automation.MODE_LABELS.get(auto["mode"], auto["mode"]),
@@ -344,7 +345,12 @@ async def poller() -> None:
                 backoff = 0
             except Exception as exc:
                 state.ok = False
-                state.error = str(exc)
+                if isinstance(exc, TuyaError):
+                    state.error = tuya_error_hint(
+                        exc, config.tuya.get("client_id", ""), ""
+                    )
+                else:
+                    state.error = str(exc)
                 state.failures += 1
                 if backoff == 0:
                     store.log_event("error", str(exc))
@@ -420,6 +426,30 @@ def require_api_access(request: Request) -> None:
 
 def page(request: Request, name: str, **ctx: Any) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(request, name, {"cfg": config, "show_nav": True, **ctx})
+
+
+def trial_status() -> dict[str, Any]:
+    """Erinnerung an den ablaufenden Tuya-Testzeitraum.
+
+    Tuya befristet kostenlose Cloud-Projekte und verraet ueber die API nicht,
+    wann Schluss ist — es hoert einfach auf zu funktionieren. Deshalb zaehlen wir
+    selbst ab dem Tag, an dem die Zugangsdaten zuletzt bestaetigt wurden, und
+    erinnern rechtzeitig. Wer verlaengert hat, setzt den Zaehler per Klick zurueck.
+    """
+    seit = float(config.get("tuya_setup_ts") or 0)
+    if not seit:
+        return {"known": False, "days": 0, "warn": False, "expired": False}
+
+    tage = (time.time() - seit) / 86400
+    grenze = int(config.get("trial_reminder_days", 25) or 25)
+    abgelaufen = bool(state.error and ("1106" in state.error or "1114" in state.error))
+    return {
+        "known": True,
+        "days": int(tage),
+        "days_until_reminder": max(0, grenze - int(tage)),
+        "warn": tage >= grenze,
+        "expired": abgelaufen,
+    }
 
 
 def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str) -> str:
@@ -534,6 +564,7 @@ async def setup_submit(
 
     config.set_admin_password(password)
     config.set("setup_done", True)
+    config.set("tuya_setup_ts", time.time())
     config.ensure_api_token()
     config.save()
     request.session["user"] = "admin"
@@ -838,6 +869,9 @@ async def settings_save(
 
     # Leeres Secret-Feld = unveraendert lassen (es wird nie im Klartext angezeigt).
     secret = client_secret.strip() or config.tuya.get("client_secret", "")
+    if client_id.strip() != config.tuya.get("client_id", "") or client_secret.strip():
+        # Neue Zugangsdaten heissen in aller Regel: neues Projekt, neuer Zeitraum.
+        config.set("tuya_setup_ts", time.time())
     config.set_tuya(client_id, secret, region)
     config.set("refresh_seconds", max(MIN_INTERVAL, min(MAX_INTERVAL, int(refresh_seconds))))
     config.set("history_seconds", max(0, min(3600, int(history_seconds))))
@@ -846,6 +880,16 @@ async def settings_save(
     state.spec = {}
     state.spec_fetched_at = 0.0
     return RedirectResponse("/settings?saved=1", status_code=303)
+
+
+@app.post("/trial-verlaengert")
+async def trial_verlaengert(request: Request):
+    """Der Nutzer hat den Testzeitraum verlaengert — Zaehler neu starten."""
+    require_login(request)
+    config.set("tuya_setup_ts", time.time())
+    config.save()
+    store.log_event("info", "Tuya-Testzeitraum als verlaengert markiert")
+    return RedirectResponse(request.headers.get("referer", "/"), status_code=303)
 
 
 @app.post("/settings/rotate-token")
@@ -942,6 +986,7 @@ async def healthz():
             "last_poll_age_seconds": round(age, 1) if age is not None else None,
             "error": state.error,
             "price_error": state.price_error,
+            "trial": trial_status(),
             "polls": state.polls,
             "failures": state.failures,
         },

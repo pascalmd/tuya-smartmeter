@@ -60,6 +60,24 @@ async function load() {
 
   // Meldungen
   const alerts = [];
+  const t = s.trial || {};
+  if (t.expired) {
+    alerts.push(['err', `<strong>Der Testzeitraum deines Tuya-Projekts ist abgelaufen.</strong>
+      Die App kann nicht mehr schalten, bis du ihn verlängerst:
+      auf <code>iot.tuya.com</code> → dein Projekt → <em>Service</em> → <em>Extend Trial</em>.
+      Das ist kostenlos und dauert eine Minute.
+      <form method="post" action="/trial-verlaengert" style="margin-top:8px">
+        <button style="padding:5px 12px; font-size:13px">Erledigt — Zähler zurücksetzen</button>
+      </form>`]);
+  } else if (t.warn) {
+    alerts.push(['warn', `Dein Tuya-Projekt läuft seit ${t.days} Tagen.
+      Kostenlose Projekte sind befristet — verlängere jetzt vorsorglich unter
+      <code>iot.tuya.com</code> → Projekt → <em>Service</em> → <em>Extend Trial</em>,
+      dann steht die App nicht plötzlich still.
+      <form method="post" action="/trial-verlaengert" style="margin-top:8px">
+        <button class="secondary" style="padding:5px 12px; font-size:13px">Erledigt — Zähler zurücksetzen</button>
+      </form>`]);
+  }
   if (s.error) alerts.push(['err', 'Tuya: ' + s.error]);
   if (s.price && s.price.error) alerts.push(['err', 'Preisabruf: ' + s.price.error]);
   if (s.age_seconds !== null && s.age_seconds > Math.max(60, s.refresh_seconds * 6))
