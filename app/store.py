@@ -29,6 +29,10 @@ def _connect() -> sqlite3.Connection:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_FILE, timeout=10)
     conn.execute("PRAGMA journal_mode=WAL")
+    # NORMAL statt FULL: spart pro Schreibvorgang ein fsync. Bei einem
+    # Stromausfall koennen die letzten Sekunden fehlen - fuer Messwerte
+    # verschmerzbar, fuer die Lebensdauer einer SD-Karte deutlich spuerbar.
+    conn.execute("PRAGMA synchronous=NORMAL")
     return conn
 
 

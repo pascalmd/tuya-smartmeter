@@ -197,6 +197,45 @@ Detailfehler stehen im Container-Log: **Apps → tuya-smartmeter → Logs**.
 
 ---
 
+## Statt NAS: Raspberry Pi
+
+Wenn kein NAS zur Verfügung steht oder es nicht rund um die Uhr läuft, ist ein
+Raspberry Pi die naheliegende Alternative — er braucht 3 bis 5 Watt und kostet
+im Jahr etwa so viel Strom wie zwei Tassen Kaffee.
+
+**Wenn der Pi noch leer ist**, ist es sogar einfacher als mit einem bestehenden
+System. Der *Raspberry Pi Imager* ist eine normale Windows-Anwendung und nimmt
+einem die ganze Vorbereitung ab:
+
+1. Imager installieren, SD-Karte einlegen
+2. Betriebssystem: **Raspberry Pi OS Lite (64-bit)** — ohne Desktop, 64-bit ist Pflicht
+3. Vor dem Schreiben auf das **Zahnrad** klicken und ausfüllen: Hostname,
+   SSH aktivieren mit Benutzername und Passwort, WLAN-Zugang, Zeitzone
+4. Karte schreiben, in den Pi stecken, Strom anschließen
+
+Weil WLAN und SSH schon auf der Karte stehen, braucht der Pi **weder Bildschirm
+noch Tastatur**. Nach ein bis zwei Minuten ist er im Netz erreichbar.
+
+**Dann per SSH verbinden und eine Zeile eingeben:**
+
+```bash
+curl -sSL https://raw.githubusercontent.com/pascalmd/tuya-smartmeter/main/install.sh | sudo bash
+```
+
+Das Skript prüft das System, installiert Docker falls nötig, richtet den Dienst
+ein und nennt am Ende die Adresse für den Browser. Was auf dem Pi schon läuft,
+bleibt unangetastet; ist Port 8099 belegt, weicht es selbstständig aus.
+
+Ab da geht es weiter mit **Teil 4** — Ersteinrichtung im Browser.
+
+> **Zur SD-Karte:** Die App zeichnet Messwerte auf und schreibt dafür regelmäßig
+> auf die Karte. Ab Werk geschieht das einmal pro Minute, was auch billige Karten
+> jahrelang aushalten. Wer ganz sichergehen will, stellt den Wert unter
+> *Einstellungen* höher oder auf 0 — geschaltet wird davon unabhängig weiter im
+> vollen Takt.
+
+---
+
 ## Zugriff von unterwegs
 
 Die App ist absichtlich nur im eigenen Netz erreichbar. Wenn du von außen

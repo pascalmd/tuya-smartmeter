@@ -26,6 +26,7 @@ _DEFAULTS: dict[str, Any] = {
     "device_name": "",
     "api_token": "",
     "refresh_seconds": 10,
+    "history_seconds": 60,
     "tibber": {"token": "", "home_id": "", "home_label": ""},
     "price": {},
     "automation": {},

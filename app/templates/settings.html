@@ -42,6 +42,16 @@
       10 s sind ein guter Wert. Die Tuya-Cloud hat ein Tageslimit für Abfragen —
       unter 5 s geht nicht.
     </div>
+
+    <label for="history_seconds">Messwerte aufzeichnen alle … Sekunden</label>
+    <input type="number" id="history_seconds" name="history_seconds" min="0" max="3600"
+           value="{{ cfg.get('history_seconds', 60) }}">
+    <div class="hint">
+      Betrifft nur die Aufzeichnung, nicht das Schalten — das läuft weiter im
+      vollen Takt. Auf einem Raspberry Pi liegt die Datenbank meist auf einer
+      SD-Karte; seltener schreiben verlängert deren Leben erheblich.
+      <strong>0 schaltet die Aufzeichnung ganz ab.</strong>
+    </div>
   </div>
 
   <div class="card">

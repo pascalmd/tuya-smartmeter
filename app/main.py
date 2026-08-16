@@ -33,6 +33,12 @@ MIN_INTERVAL = 5
 MAX_INTERVAL = 3600
 PRICE_REFRESH_SECONDS = 600  # Preise sind stundenscharf; 10 min reicht reichlich
 
+# Wie oft ein Messwert in die Historie geschrieben wird. Bewusst entkoppelt vom
+# Abfrageintervall: Auf einem Raspberry Pi liegt die Datenbank auf einer
+# SD-Karte, und alle 10 s zu schreiben killt die Karte binnen Monaten.
+# Geschaltet wird trotzdem im vollen Takt - nur das Protokoll ist gröber.
+HISTORY_SECONDS_DEFAULT = 60
+
 
 class State:
     """Letzter bekannter Stand, vom Hintergrund-Poller gepflegt."""
@@ -62,6 +68,8 @@ class State:
         # Schaltzustand nachhalten, um fremde Eingriffe zu erkennen
         self.last_seen: bool | None = None
         self.expected_state: bool | None = None
+
+        self.last_record_ts: float = 0.0
 
     def switch_value(self, code: str) -> bool | None:
         for sw in self.view.get("switches", []):
@@ -177,7 +185,11 @@ async def poll_device() -> None:
     state.ok = True
     state.error = ""
     state.polls += 1
-    store.record(state.view["metrics"], state.view["phases"])
+
+    history_seconds = max(0, int(config.get("history_seconds", HISTORY_SECONDS_DEFAULT) or 0))
+    if history_seconds and time.time() - state.last_record_ts >= history_seconds:
+        store.record(state.view["metrics"], state.view["phases"])
+        state.last_record_ts = time.time()
 
     # Aus-Zeit mitschreiben, damit das Sicherheitsnetz greifen kann.
     auto = automation.settings(config.get("automation"))
@@ -799,6 +811,7 @@ async def settings_save(
     client_secret: str = Form(""),
     region: str = Form("eu"),
     refresh_seconds: int = Form(10),
+    history_seconds: int = Form(60),
     password: str = Form(""),
     password2: str = Form(""),
 ):
@@ -827,6 +840,7 @@ async def settings_save(
     secret = client_secret.strip() or config.tuya.get("client_secret", "")
     config.set_tuya(client_id, secret, region)
     config.set("refresh_seconds", max(MIN_INTERVAL, min(MAX_INTERVAL, int(refresh_seconds))))
+    config.set("history_seconds", max(0, min(3600, int(history_seconds))))
     config.save()
     reset_client()
     state.spec = {}

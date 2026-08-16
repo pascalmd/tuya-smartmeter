@@ -11,7 +11,19 @@ eine Weboberfläche.
 Preisquelle, Schaltregeln — passiert im Browser. Für die Installation auf einem
 NAS über dessen Oberfläche siehe **[INSTALL-TRUENAS.md](INSTALL-TRUENAS.md)**.
 
-## Schnellstart
+## Installation
+
+**Auf einem Linux-Rechner oder Raspberry Pi** — ein Befehl, der alles einrichtet
+(auch Docker, falls es fehlt):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/pascalmd/tuya-smartmeter/main/install.sh | sudo bash
+```
+
+**Auf einem NAS** über dessen eigene Oberfläche:
+siehe [INSTALL-TRUENAS.md](INSTALL-TRUENAS.md).
+
+**Von Hand**, wenn Docker schon läuft:
 
 ```bash
 docker run -d --name tuya-smartmeter -p 8099:8099 \
@@ -19,7 +31,11 @@ docker run -d --name tuya-smartmeter -p 8099:8099 \
   ghcr.io/pascalmd/tuya-smartmeter:latest
 ```
 
-Dann `http://<server>:8099` öffnen — der Rest läuft im Browser.
+Danach `http://<server>:8099` öffnen — der Rest läuft im Browser.
+
+Das Image gibt es für **x86_64 und ARM64**; auf einem Raspberry Pi wird
+automatisch die passende Fassung geladen. Ein 64-bit-Betriebssystem ist nötig
+(Raspberry Pi OS Lite 64-bit), ein Pi 3 oder neuer.
 
 ## Was man braucht
 
@@ -45,6 +61,7 @@ Dann `http://<server>:8099` öffnen — der Rest läuft im Browser.
 | `app/store.py` | SQLite-Historie (`/config/history.db`), Messwerte + Ereignisse, 90 Tage Aufbewahrung |
 | `app/config.py` | Konfiguration in `/config/config.json`, scrypt-Passworthash, API-Token |
 | `app/main.py` | FastAPI: Seiten, JSON-API, Hintergrund-Poller |
+| `install.sh` | Installer für Linux/Raspberry Pi: prüft System, installiert Docker falls nötig, sucht freien Port, richtet den Dienst ein |
 | `tests/test_logic.py` | 30 Tests: Schaltregeln, Preisquellen, Fremdschaltungserkennung, Tuya-Aufbereitung — laufen ohne Cloud |
 
 ## Betrieb
@@ -52,7 +69,10 @@ Dann `http://<server>:8099` öffnen — der Rest läuft im Browser.
 Der Poller läuft dauerhaft im Container, unabhängig von geöffneten Browser-Tabs:
 
 1. Gerätestatus von Tuya holen (Intervall einstellbar, Standard 10 s)
-2. Messwerte in die SQLite-Historie schreiben
+2. Messwerte in die SQLite-Historie schreiben — **entkoppelt vom Abfragetakt**
+   (Standard 60 s, 0 schaltet ab). Auf einem Raspberry Pi liegt die Datenbank
+   auf einer SD-Karte; alle 10 s zu schreiben verschleißt sie unnötig. Geschaltet
+   wird trotzdem im vollen Takt
 3. Strompreise auffrischen (alle 10 min — Preise sind stundenscharf)
 4. Regel auswerten, bei Abweichung schalten
 
