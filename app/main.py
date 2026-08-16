@@ -359,6 +359,56 @@ def page(request: Request, name: str, **ctx: Any) -> HTMLResponse:
     return TEMPLATES.TemplateResponse(request, name, {"cfg": config, "show_nav": True, **ctx})
 
 
+def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str) -> str:
+    """Aus dem Tuya-Fehlercode eine Meldung machen, mit der man etwas anfangen kann.
+
+    Die Codes sind aussagekraeftig, aber Tuyas Klartext ist es nicht - "sign
+    invalid" klingt nach Programmfehler, ist aber fast immer ein unvollstaendig
+    kopiertes Secret.
+    """
+    cid = (client_id or "").strip()
+    sec = (client_secret or "").strip()
+    code = exc.code
+
+    if code == 1004:  # sign invalid
+        hint = (
+            "Die Access ID wurde erkannt, aber das Access Secret passt nicht dazu. "
+            "Fast immer liegt es am Kopieren: In der Tuya-Oberflaeche ist das Secret "
+            "verborgen — erst auf das Augen-Symbol klicken, dann den sichtbaren Text "
+            "vollstaendig markieren und kopieren."
+        )
+        if len(sec) != 32:
+            hint += (
+                f" Dein Secret ist {len(sec)} Zeichen lang; Tuya-Secrets haben "
+                "normalerweise genau 32. Es fehlt also vermutlich etwas."
+            )
+        if len(cid) != 20:
+            hint += (
+                f" Auch die Access ID weicht ab ({len(cid)} statt der ueblichen 20 Zeichen) "
+                "— stammen beide aus demselben Projekt?"
+            )
+        return f"Signatur abgelehnt (Code 1004). {hint}"
+
+    if code == 2009:  # clientId is invalid
+        return (
+            "Die Access ID kennt Tuya nicht (Code 2009). Entweder ist sie vertippt, "
+            "oder das Projekt liegt in einem anderen Rechenzentrum als hier ausgewaehlt. "
+            "Im Tuya-Projekt unter Overview steht, welches es ist."
+        )
+
+    if code in (1106, 1114):  # no permissions
+        return (
+            f"Keine Berechtigung (Code {code}). Entweder fehlt im Tuya-Projekt eine der "
+            "APIs (IoT Core, Authorization, Smart Home Scene Linkage), oder der "
+            "Testzeitraum ist abgelaufen — dann unter Service → Extend Trial verlaengern."
+        )
+
+    return (
+        f"Die Tuya-Cloud lehnt die Anfrage ab: {exc.msg} (Code {code}). "
+        "Bitte Access ID, Access Secret und das Rechenzentrum pruefen."
+    )
+
+
 def guard(request: Request):
     """Gemeinsamer Einstieg: Ersteinrichtung bzw. Anmeldung erzwingen."""
     if not config.setup_done:
@@ -391,7 +441,17 @@ async def setup_submit(
         return RedirectResponse("/login", status_code=303)
 
     def fail(msg: str):
-        return page(request, "setup.html", regions=ENDPOINTS, error=msg, show_nav=False)
+        # Eingaben zurueckgeben, damit bei einem Fehler nicht alles neu getippt
+        # werden muss. Passwoerter bleiben absichtlich leer.
+        return page(
+            request,
+            "setup.html",
+            regions=ENDPOINTS,
+            error=msg,
+            show_nav=False,
+            client_id=client_id,
+            region=region,
+        )
 
     if len(password) < 8:
         return fail("Das Passwort muss mindestens 8 Zeichen haben.")
@@ -405,10 +465,7 @@ async def setup_submit(
     try:
         await client().list_devices()
     except TuyaError as exc:
-        return fail(
-            f"Die Tuya-Cloud lehnt die Zugangsdaten ab: {exc.msg} (Code {exc.code}). "
-            "Bitte Access ID, Access Secret und die Region pruefen."
-        )
+        return fail(tuya_error_hint(exc, client_id, client_secret))
     except Exception as exc:
         return fail(f"Keine Verbindung zur Tuya-Cloud: {exc}")
 

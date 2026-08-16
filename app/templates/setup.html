@@ -9,13 +9,23 @@
   </p>
 </div>
 
-{% if error %}<div class="msg err">{{ error }}</div>{% endif %}
+{% if error %}
+<div class="msg err">
+  {{ error }}
+  <div style="margin-top:6px; font-weight:400">
+    Deine Eingaben stehen noch da — nur die Passwortfelder musst du erneut ausfüllen.
+  </div>
+</div>
+{% endif %}
 
 <form method="post">
   <div class="card">
     <h2>Zugang zu dieser Oberfläche</h2>
     <label for="password">Passwort festlegen
-      <div class="hint">Mindestens 8 Zeichen. Damit meldest du dich künftig hier an.</div>
+      <div class="hint">
+        Denk dir eines aus, mindestens 8 Zeichen. Damit meldest du dich künftig
+        hier an — es hat mit Tuya und Tibber nichts zu tun.
+      </div>
     </label>
     <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password">
 
@@ -32,7 +42,8 @@
     </div>
 
     <label for="client_id">Access ID / Client ID</label>
-    <input type="text" id="client_id" name="client_id" required autocomplete="off" spellcheck="false">
+    <input type="text" id="client_id" name="client_id" required autocomplete="off"
+           spellcheck="false" value="{{ client_id|default('', true) }}">
 
     <label for="client_secret">Access Secret / Client Secret</label>
     <input type="password" id="client_secret" name="client_secret" required autocomplete="off">
@@ -40,13 +51,14 @@
     <label for="region">Rechenzentrum
       <div class="hint">Für Deutschland: Central Europe.</div>
     </label>
+    {% set sel = region|default('eu', true) %}
     <select id="region" name="region">
-      <option value="eu" selected>Central Europe (Deutschland/EU)</option>
-      <option value="eu-west">Western Europe</option>
-      <option value="us">Western America</option>
-      <option value="us-west">Eastern America</option>
-      <option value="cn">China</option>
-      <option value="in">India</option>
+      <option value="eu"      {% if sel == 'eu' %}selected{% endif %}>Central Europe (Deutschland/EU)</option>
+      <option value="eu-west" {% if sel == 'eu-west' %}selected{% endif %}>Western Europe</option>
+      <option value="us"      {% if sel == 'us' %}selected{% endif %}>Western America</option>
+      <option value="us-west" {% if sel == 'us-west' %}selected{% endif %}>Eastern America</option>
+      <option value="cn"      {% if sel == 'cn' %}selected{% endif %}>China</option>
+      <option value="in"      {% if sel == 'in' %}selected{% endif %}>India</option>
     </select>
 
     <p style="margin-top:18px">
