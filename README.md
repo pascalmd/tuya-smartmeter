@@ -1,27 +1,38 @@
 # tuya-smartmeter
 
-Weboberfläche + Dauerdienst, der einen Tuya-Stromzähler (Zielgerät: **KTEM06**)
-über die **Tuya Cloud API** ausliest und schaltet, und ihn anhand der
-**Strompreise** automatisch ein- und ausschaltet (Quelle wählbar).
+Schaltet einen Tuya-Stromzähler automatisch nach dem aktuellen Strompreis —
+ein wenn Strom günstig ist, aus wenn er teuer ist.
 
-Gebaut als weitergebbare App: kein Wert ist fest verdrahtet, die komplette
-Einrichtung passiert im Browser. Zielplattform ist eine **TrueNAS-Installation
-über die UI** — siehe [INSTALL-TRUENAS.md](INSTALL-TRUENAS.md).
+Entwickelt für den **KTEM06**, funktioniert aber mit jedem Tuya-Gerät, das einen
+schaltbaren Ausgang meldet. Läuft als Dienst im Container, bedient wird sie über
+eine Weboberfläche.
 
-## Wo es läuft
+**Keine Konfigurationsdateien:** Die komplette Einrichtung — Zugangsdaten, Gerät,
+Preisquelle, Schaltregeln — passiert im Browser. Für die Installation auf einem
+NAS über dessen Oberfläche siehe **[INSTALL-TRUENAS.md](INSTALL-TRUENAS.md)**.
 
-Testinstanz auf **docker01**: `http://192.168.178.17:8099`
-Compose `/DATA/Docker/tuya-smartmeter/`, Daten `/DATA/AppData/tuya-smartmeter/`.
+## Schnellstart
 
-Das Image liegt öffentlich auf `ghcr.io/pascalmd/tuya-smartmeter` (`:latest`,
-`:1.0.0`, `:1.1.0`) und lässt sich ohne Anmeldung ziehen. Der Container ist
-trotzdem **von Watchtower ausgenommen** (Label
-`com.centurylinklabs.watchtower.enable=false`): Ein Dienst, der Strom schaltet,
-soll sich nicht unbemerkt selbst aktualisieren. Updates laufen von Hand —
-`docker compose pull && docker compose up -d`.
+```bash
+docker run -d --name tuya-smartmeter -p 8099:8099 \
+  -v ./config:/config -e TZ=Europe/Berlin --restart unless-stopped \
+  ghcr.io/pascalmd/tuya-smartmeter:latest
+```
 
-Die TrueNAS-Installation über die UI ist der eigentliche Auslieferungsweg und in
-[INSTALL-TRUENAS.md](INSTALL-TRUENAS.md) beschrieben.
+Dann `http://<server>:8099` öffnen — der Rest läuft im Browser.
+
+## Was man braucht
+
+- Ein **Tuya-Entwicklerprojekt** (kostenlos, `iot.tuya.com`) für Access ID und
+  Access Secret. Das App-Konto von Smart Life reicht nicht — die Anleitung
+  erklärt, warum und wie.
+- Eine **Preisquelle**. aWATTar und Energy-Charts liefern Börsenpreise ohne
+  Anmeldung; wer einen dynamischen Tarif bei Tibber hat, bekommt dort den echten
+  Endkundenpreis.
+
+> Preisgesteuertes Schalten spart nur Geld, wenn der eigene Tarif die
+> Stundenpreise tatsächlich weitergibt. Bei einem Festpreistarif ändert sich am
+> Rechnungsbetrag nichts.
 
 ## Aufbau
 
@@ -103,16 +114,10 @@ docker build -t ghcr.io/<konto>/tuya-smartmeter:latest .
 docker push ghcr.io/<konto>/tuya-smartmeter:latest
 ```
 
-Das Paket steht auf **public** — Fremde (z. B. der Kumpel mit dem zweiten
-KTEM06) können es ohne Konto ziehen. Umstellen ging nur in der Web-UI, dafür gibt
-es keinen REST-Endpunkt.
-
-Zwei Tokens in Vaultwarden, nicht verwechseln: *GitHub PAT* ist fine-grained und
-hängt in den ghcr-Logins auf docker01/02/03/zima (Watchtower-Digest-Checks) —
-nicht überschreiben. *GitHub PAT packages (classic)* hat `write:packages` und ist
-der für den Push.
-
-Alternative ohne GitHub wäre die Forgejo-Registry auf zima (`git.7x10.net`).
+Das Paket steht auf **public**, lässt sich also ohne Konto ziehen. Die
+Sichtbarkeit ist nur über die Web-Oberfläche umstellbar, dafür gibt es keinen
+REST-Endpunkt. Für den Push braucht es ein *classic* Personal Access Token mit
+`write:packages` — fine-grained Tokens werden von GHCR abgelehnt.
 
 ## Bekannte Grenzen
 
