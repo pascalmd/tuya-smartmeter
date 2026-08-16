@@ -12,8 +12,13 @@ Einrichtung passiert im Browser. Zielplattform ist eine **TrueNAS-Installation
 
 Testinstanz auf **docker01**: `http://192.168.178.17:8099`
 Compose `/DATA/Docker/tuya-smartmeter/`, Daten `/DATA/AppData/tuya-smartmeter/`.
-Image dorthin per `docker save | docker load` von docker02 gebracht (ghcr-Paket
-ist noch privat), Container von Watchtower ausgenommen.
+
+Das Image liegt öffentlich auf `ghcr.io/pascalmd/tuya-smartmeter` (`:latest`,
+`:1.0.0`, `:1.1.0`) und lässt sich ohne Anmeldung ziehen. Der Container ist
+trotzdem **von Watchtower ausgenommen** (Label
+`com.centurylinklabs.watchtower.enable=false`): Ein Dienst, der Strom schaltet,
+soll sich nicht unbemerkt selbst aktualisieren. Updates laufen von Hand —
+`docker compose pull && docker compose up -d`.
 
 Die TrueNAS-Installation über die UI ist der eigentliche Auslieferungsweg und in
 [INSTALL-TRUENAS.md](INSTALL-TRUENAS.md) beschrieben.
@@ -98,9 +103,16 @@ docker build -t ghcr.io/<konto>/tuya-smartmeter:latest .
 docker push ghcr.io/<konto>/tuya-smartmeter:latest
 ```
 
-Alternative ohne GitHub: die Forgejo-Registry auf zima (`git.7x10.net`).
-Damit Fremde (z. B. der Kumpel mit dem zweiten KTEM06) das Image ziehen können,
-muss das Paket öffentlich sein.
+Das Paket steht auf **public** — Fremde (z. B. der Kumpel mit dem zweiten
+KTEM06) können es ohne Konto ziehen. Umstellen ging nur in der Web-UI, dafür gibt
+es keinen REST-Endpunkt.
+
+Zwei Tokens in Vaultwarden, nicht verwechseln: *GitHub PAT* ist fine-grained und
+hängt in den ghcr-Logins auf docker01/02/03/zima (Watchtower-Digest-Checks) —
+nicht überschreiben. *GitHub PAT packages (classic)* hat `write:packages` und ist
+der für den Push.
+
+Alternative ohne GitHub wäre die Forgejo-Registry auf zima (`git.7x10.net`).
 
 ## Bekannte Grenzen
 
