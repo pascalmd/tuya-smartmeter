@@ -59,6 +59,10 @@ class State:
         self.last_action: str = ""
         self.off_since: float | None = None
 
+        # Schaltzustand nachhalten, um fremde Eingriffe zu erkennen
+        self.last_seen: bool | None = None
+        self.expected_state: bool | None = None
+
     def switch_value(self, code: str) -> bool | None:
         for sw in self.view.get("switches", []):
             if sw["code"] == code and sw.get("present"):
@@ -183,6 +187,43 @@ async def poll_device() -> None:
     elif current is True:
         state.off_since = None
 
+    if current is not None:
+        note_switch_state(current, auto)
+
+
+def note_switch_state(current: bool, auto: dict[str, Any]) -> None:
+    """Erkennen, ob jemand anders geschaltet hat — etwa in der Smart-Life-App.
+
+    Ohne das wuerde die Automatik eine Handbedienung am Geraet oder im Handy
+    binnen Sekunden zurueckdrehen. Ein Wechsel, den wir nicht selbst ausgeloest
+    haben, zaehlt deshalb genauso als Handbetrieb wie ein Klick in dieser
+    Oberflaeche.
+    """
+    vorher = state.last_seen
+    state.last_seen = current
+
+    if vorher is None or vorher == current:
+        return  # erster Messwert oder keine Aenderung
+
+    if state.expected_state is not None and current == state.expected_state:
+        state.expected_state = None
+        return  # das waren wir selbst
+
+    # Ab hier: der Zustand hat sich geaendert, ohne dass wir es veranlasst haben.
+    state.expected_state = None
+    wort = "ein" if current else "aus"
+    store.log_event("switch", f"Von aussen geschaltet: {auto['switch_code']} = {wort}")
+    log.info("Fremdschaltung erkannt: %s = %s", auto["switch_code"], wort)
+
+    if auto["enabled"] and auto["override_minutes"]:
+        config.set("override_until", time.time() + auto["override_minutes"] * 60)
+        config.save()
+        state.last_action = (
+            f"{wort.upper()} — von Hand geschaltet (nicht über diese Oberfläche), "
+            f"Automatik pausiert {auto['override_minutes']} min"
+        )
+        state.last_action_ts = time.time()
+
 
 async def poll_prices(force: bool = False) -> None:
     price_cfg = prices.settings(config.get("price"))
@@ -260,6 +301,7 @@ async def apply_automation() -> None:
         log.warning("Automatik-Schaltbefehl fehlgeschlagen: %s", exc)
         return
 
+    state.expected_state = decision.desired  # damit der naechste Poll uns nicht fuer fremd haelt
     state.last_action = f"{'EIN' if decision.desired else 'AUS'} — {decision.reason}"
     state.last_action_ts = time.time()
     store.log_event(
@@ -823,6 +865,8 @@ async def api_switch(request: Request, _: None = Depends(require_api_access)):
     except TuyaError as exc:
         store.log_event("error", f"Schaltbefehl {code}={value} fehlgeschlagen: {exc.msg}")
         raise HTTPException(status_code=502, detail=f"{exc.msg} (Code {exc.code})") from exc
+
+    state.expected_state = value  # eigener Befehl, keine Fremdschaltung
 
     # Handbedienung pausiert die Automatik, sonst schaltet sie sofort zurueck.
     auto = automation.settings(config.get("automation"))

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
+import time
 import sys
 import unittest
 from pathlib import Path
@@ -231,6 +232,52 @@ class Preisquellen(unittest.TestCase):
     def test_spot_erkennung(self) -> None:
         self.assertTrue(prices.is_spot("awattar_de"))
         self.assertFalse(prices.is_spot("tibber"))
+
+
+class Fremdschaltung(unittest.TestCase):
+    """Erkennung von Schaltvorgaengen, die nicht aus dieser App kamen."""
+
+    def setUp(self) -> None:
+        import os
+        os.environ.setdefault("CONFIG_DIR", "/tmp/tuya-test-config")
+        from app import main
+        self.main = main
+        self.state = main.state
+        self.state.last_seen = None
+        self.state.expected_state = None
+        self.state.last_action = ""
+        self.auto = automation.settings(
+            {"enabled": True, "switch_code": "switch", "override_minutes": 60}
+        )
+        main.config.set("override_until", 0)
+
+    def test_erste_messung_loest_nichts_aus(self) -> None:
+        self.main.note_switch_state(True, self.auto)
+        self.assertEqual(self.main.config.get("override_until"), 0)
+
+    def test_unveraenderter_zustand_loest_nichts_aus(self) -> None:
+        self.main.note_switch_state(True, self.auto)
+        self.main.note_switch_state(True, self.auto)
+        self.assertEqual(self.main.config.get("override_until"), 0)
+
+    def test_eigene_schaltung_gilt_nicht_als_fremd(self) -> None:
+        self.main.note_switch_state(True, self.auto)
+        self.state.expected_state = False          # wir schalten selbst aus
+        self.main.note_switch_state(False, self.auto)
+        self.assertEqual(self.main.config.get("override_until"), 0)
+        self.assertIsNone(self.state.expected_state)
+
+    def test_fremde_schaltung_pausiert_die_automatik(self) -> None:
+        self.main.note_switch_state(False, self.auto)
+        self.main.note_switch_state(True, self.auto)   # jemand schaltet in der Tuya-App ein
+        self.assertGreater(self.main.config.get("override_until"), time.time())
+        self.assertIn("von Hand", self.state.last_action)
+
+    def test_ohne_pausenzeit_keine_pause(self) -> None:
+        auto = automation.settings({"enabled": True, "override_minutes": 0})
+        self.main.note_switch_state(False, auto)
+        self.main.note_switch_state(True, auto)
+        self.assertEqual(self.main.config.get("override_until"), 0)
 
 
 if __name__ == "__main__":
