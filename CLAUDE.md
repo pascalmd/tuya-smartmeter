@@ -86,6 +86,14 @@ muss das Paket öffentlich sein.
 - **Cloud-Abhängigkeit:** Ohne Internet kein Schalten. Ein lokaler Weg über den
   Local Key (tinytuya) wäre unabhängig, braucht aber einen zusätzlichen
   Auslesevorgang pro Gerät.
+
+  **Bewusst nicht lokal gebaut** (Entscheidung 2026-08-16): Bei Weitergabe ist
+  das Netz des Empfängers unbekannt. Hängt der Zähler z. B. im FritzBox-Gastnetz
+  und der Server im Heimnetz, kommt eine lokale Verbindung prinzipiell nicht
+  zustande — Gastnetze sperren den Zugriff aufs Heimnetz und lassen sich dafür
+  nicht öffnen. Der Cloud-Weg funktioniert dagegen über Segmentgrenzen hinweg,
+  weil beide Seiten nur ausgehend verbinden. Lokal bleibt eine Option für
+  Installationen, bei denen Gerät und Server nachweislich im selben Netz liegen.
 - **Tuya-Abfragelimit:** Das kostenlose Kontingent ist endlich; unter 5 s
   Intervall lässt die App deshalb nicht zu.
 - **Schaltkanal:** Die App bietet an, was das Gerät in seiner Spezifikation als
