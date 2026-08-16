@@ -155,6 +155,21 @@ class TuyaClient:
     async def device_status(self, device_id: str) -> list[dict[str, Any]]:
         return await self._request("GET", f"/v1.0/iot-03/devices/{device_id}/status")
 
+    async def device_snapshot(self, device_id: str) -> dict[str, Any]:
+        """Messwerte UND Verbindungszustand in einem Aufruf.
+
+        Wichtig: Die Cloud liefert auch dann den zuletzt bekannten Stand, wenn
+        das Geraet laengst vom Netz ist. Ohne das online-Flag sieht eine tote
+        Verbindung aus wie ein stiller Betrieb - mit Spannungswerten, die von
+        gestern stammen.
+        """
+        result = await self._request("GET", f"/v1.0/devices/{device_id}")
+        return {
+            "online": bool(result.get("online")),
+            "status": result.get("status", []),
+            "name": result.get("name", ""),
+        }
+
     async def device_spec(self, device_id: str) -> dict[str, Any]:
         return await self._request("GET", f"/v1.0/iot-03/devices/{device_id}/specification")
 

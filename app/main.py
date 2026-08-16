@@ -71,6 +71,8 @@ class State:
         self.expected_state: bool | None = None
 
         self.last_record_ts: float = 0.0
+        self.online: bool | None = None
+        self.offline_since: float | None = None
 
     def switch_value(self, code: str) -> bool | None:
         for sw in self.view.get("switches", []):
@@ -89,6 +91,10 @@ class State:
             "error": self.error,
             "device_id": config.get("device_id", ""),
             "device_name": config.get("device_name", ""),
+            "online": self.online,
+            "offline_minutes": round((time.time() - self.offline_since) / 60)
+            if self.offline_since
+            else 0,
             "refresh_seconds": config.get("refresh_seconds", 10),
             "polls": self.polls,
             "failures": self.failures,
@@ -181,15 +187,30 @@ async def poll_device() -> None:
         state.spec = await api.device_spec(device_id)
         state.spec_fetched_at = time.time()
 
-    status = await api.device_status(device_id)
-    state.view = build_view(state.spec, status)
+    schnappschuss = await api.device_snapshot(device_id)
+    state.view = build_view(state.spec, schnappschuss["status"])
     state.ts = time.time()
     state.ok = True
     state.error = ""
     state.polls += 1
 
+    war_online = state.online
+    state.online = schnappschuss["online"]
+    if not state.online:
+        if state.offline_since is None:
+            state.offline_since = time.time()
+            store.log_event("warn", "Geraet meldet sich nicht mehr (offline)")
+            log.warning("Geraet ist offline")
+    else:
+        if war_online is False:
+            store.log_event("info", "Geraet ist wieder online")
+            log.info("Geraet ist wieder online")
+        state.offline_since = None
+
+    # Solange das Geraet offline ist, liefert die Cloud unveraendert alte Werte.
+    # Die aufzuzeichnen wuerde eine Messreihe erzeugen, die es nie gegeben hat.
     history_seconds = max(0, int(config.get("history_seconds", HISTORY_SECONDS_DEFAULT) or 0))
-    if history_seconds and time.time() - state.last_record_ts >= history_seconds:
+    if state.online and history_seconds and time.time() - state.last_record_ts >= history_seconds:
         store.record(state.view["metrics"], state.view["phases"])
         state.last_record_ts = time.time()
 
@@ -287,6 +308,17 @@ async def apply_automation() -> None:
         state.last_decision = {
             "desired": None,
             "reason": f"Handbetrieb aktiv, Automatik pausiert (noch {remaining} min)",
+            "price_ct": None,
+        }
+        return
+
+    if state.online is False:
+        dauer = ""
+        if state.offline_since:
+            dauer = f" (seit {round((time.time() - state.offline_since) / 60)} min)"
+        state.last_decision = {
+            "desired": None,
+            "reason": f"Geraet ist nicht erreichbar{dauer} — es wird nicht geschaltet",
             "price_ct": None,
         }
         return
@@ -952,6 +984,11 @@ async def api_switch(request: Request, _: None = Depends(require_api_access)):
     device_id = config.get("device_id", "")
     if not device_id:
         raise HTTPException(status_code=400, detail="Kein Geraet ausgewaehlt")
+    if state.online is False:
+        raise HTTPException(
+            status_code=409,
+            detail="Das Geraet ist nicht erreichbar. Strom da? WLAN da?",
+        )
 
     try:
         await client().send_commands(device_id, [{"code": code, "value": value}])
@@ -1011,12 +1048,13 @@ async def healthz():
     interval = int(config.get("refresh_seconds", 10) or 10)
     age = time.time() - state.ts if state.ts else None
     stale = age is not None and age > max(60, interval * 6)
-    healthy = state.ok and not stale
+    healthy = state.ok and not stale and state.online is not False
     return JSONResponse(
         {
             "status": "ok" if healthy else "degraded",
             "last_poll_age_seconds": round(age, 1) if age is not None else None,
             "error": state.error,
+            "device_online": state.online,
             "price_error": state.price_error,
             "trial": trial_status(),
             "polls": state.polls,

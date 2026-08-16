@@ -83,6 +83,11 @@ async function load() {
         <button class="secondary" style="padding:5px 12px; font-size:13px">Erledigt — Zähler zurücksetzen</button>
       </form>`]);
   }
+  if (s.online === false) {
+    alerts.push(['err', `<strong>Das Gerät ist nicht erreichbar</strong>${s.offline_minutes ? ' (seit ' + s.offline_minutes + ' min)' : ''}.
+      Die unten angezeigten Werte sind der letzte bekannte Stand und werden nicht mehr aufgezeichnet.
+      Geschaltet wird ebenfalls nicht. Prüfe Stromversorgung und WLAN des Geräts.`]);
+  }
   if (s.error) alerts.push(['err', 'Tuya: ' + s.error]);
   if (s.price && s.price.error) alerts.push(['err', 'Preisabruf: ' + s.price.error]);
   if (s.age_seconds !== null && s.age_seconds > Math.max(60, s.refresh_seconds * 6))
@@ -106,13 +111,14 @@ async function load() {
 
   // Schalter
   const auto = s.automation || {};
+  const offline = s.online === false;
   document.getElementById('switches').innerHTML = (s.switches || []).length
     ? s.switches.map(sw => `
         <div class="row">
           <div>${sw.label}<div class="muted">${sw.code}</div></div>
           <div style="display:flex; gap:8px">
-            <button ${sw.value ? 'class="secondary"' : ''} onclick="setSwitch('${sw.code}', true)"  ${sw.value ? 'disabled' : ''}>Ein</button>
-            <button ${!sw.value ? 'class="secondary"' : ''} onclick="setSwitch('${sw.code}', false)" ${!sw.value ? 'disabled' : ''}>Aus</button>
+            <button ${sw.value ? 'class="secondary"' : ''} onclick="setSwitch('${sw.code}', true)"  ${sw.value || offline ? 'disabled' : ''}>Ein</button>
+            <button ${!sw.value ? 'class="secondary"' : ''} onclick="setSwitch('${sw.code}', false)" ${!sw.value || offline ? 'disabled' : ''}>Aus</button>
           </div>
         </div>`).join('')
     : '<span class="muted">Dieses Gerät meldet keinen schaltbaren Ausgang.</span>';
@@ -142,7 +148,9 @@ async function load() {
     rows.push(`<div class="row"><div>${ph.label}</div><div class="val">
       ${fmt(ph.voltage_v)} V · ${fmt(ph.current_a)} A · ${fmt(ph.power_w)} W</div></div>`);
   });
-  document.getElementById('metrics').innerHTML = rows.join('') || '<span class="muted">Keine Messwerte.</span>';
+  document.getElementById('metrics').innerHTML =
+    (offline && rows.length ? '<div class="muted" style="padding-bottom:8px">Letzter bekannter Stand — das Gerät meldet sich nicht.</div>' : '')
+    + (rows.join('') || '<span class="muted">Keine Messwerte.</span>');
 
   // Einstellwerte des Geräts (z. B. Abschalt-Timer) getrennt zeigen
   const st = (s.settings || []);
@@ -170,7 +178,7 @@ async function load() {
   }
 
   document.getElementById('status').innerHTML =
-    `Gerät: ${s.device_name || '–'} · Abfragen: ${s.polls} (${s.failures} Fehler) ·
+    `Gerät: ${s.device_name || '–'} (${s.online === false ? 'nicht erreichbar' : s.online ? 'verbunden' : 'unbekannt'}) · Abfragen: ${s.polls} (${s.failures} Fehler) ·
      Intervall: ${s.refresh_seconds} s · Dienst läuft seit ${Math.round(s.uptime_seconds / 60)} min`;
 }
 
