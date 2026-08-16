@@ -351,5 +351,60 @@ class BlockModus(unittest.TestCase):
         self.assertEqual(automation.settings({"min_on_minutes": 9999})["min_on_minutes"], 1440)
 
 
+class GeraeteAufbereitungEcht(unittest.TestCase):
+    """Gegen die echte Spezifikation eines DDS238-2 WIFI geprueft."""
+
+    SPEC = {
+        "functions": [
+            {"code": "switch_1", "type": "Boolean", "values": "{}"},
+            {"code": "countdown_1", "type": "Integer",
+             "values": '{"unit":"s","min":0,"max":86400,"scale":0,"step":1}'},
+        ],
+        "status": [
+            {"code": "switch_1", "type": "Boolean", "values": "{}"},
+            {"code": "countdown_1", "type": "Integer",
+             "values": '{"unit":"s","min":0,"max":86400,"scale":0,"step":1}'},
+            {"code": "cur_current", "type": "Integer",
+             "values": '{"unit":"mA","min":0,"max":100000,"scale":0,"step":1}'},
+            {"code": "cur_power", "type": "Integer",
+             "values": '{"unit":"W","min":0,"max":500000,"scale":1,"step":1}'},
+            {"code": "cur_voltage", "type": "Integer",
+             "values": '{"unit":"V","min":0,"max":5000,"scale":1,"step":1}'},
+        ],
+    }
+
+    def view(self, **werte):
+        status = [{"code": k, "value": v} for k, v in werte.items()]
+        return build_view(self.SPEC, status)
+
+    def test_milliampere_werden_ampere(self) -> None:
+        v = self.view(cur_current=16000)
+        strom = next(m for m in v["metrics"] if m["code"] == "cur_current")
+        self.assertEqual(strom["value"], 16.0)
+        self.assertEqual(strom["unit"], "A")
+
+    def test_skalierte_werte(self) -> None:
+        v = self.view(cur_voltage=2315, cur_power=12345)
+        volt = next(m for m in v["metrics"] if m["code"] == "cur_voltage")
+        watt = next(m for m in v["metrics"] if m["code"] == "cur_power")
+        self.assertEqual(volt["value"], 231.5)
+        self.assertEqual(watt["value"], 1234.5)
+
+    def test_timer_ist_einstellung_kein_messwert(self) -> None:
+        v = self.view(countdown_1=3600, cur_power=100)
+        self.assertNotIn("countdown_1", [m["code"] for m in v["metrics"]])
+        self.assertIn("countdown_1", [x["code"] for x in v["settings"]])
+
+    def test_schaltkanal_heisst_switch_1(self) -> None:
+        v = self.view(switch_1=True)
+        self.assertEqual([s["code"] for s in v["switches"]], ["switch_1"])
+        self.assertTrue(v["switches"][0]["value"])
+
+    def test_unbekannte_codes_werden_nicht_erfunden(self) -> None:
+        spec = {"functions": [], "status": [{"code": "irgendwas_neu", "values": "{}"}]}
+        v = build_view(spec, [{"code": "irgendwas_neu", "value": 5}])
+        self.assertEqual(v["metrics"][0]["label"], "Irgendwas neu")
+
+
 if __name__ == "__main__":
     unittest.main()

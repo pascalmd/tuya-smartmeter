@@ -205,6 +205,20 @@ async def poll_device() -> None:
             state.on_since = time.time()
         state.off_since = None
 
+    if current is None:
+        # Der eingestellte Kanal existiert an diesem Geraet nicht. Das ist der
+        # Normalfall nach der Ersteinrichtung: Der Standard heisst "switch",
+        # viele Geraete nennen ihren Ausgang aber "switch_1". Ohne diese
+        # Korrektur stuende die Automatik still, ohne dass jemand den Grund sieht.
+        vorhandene = [sw["code"] for sw in state.view.get("switches", []) if sw.get("present")]
+        if len(vorhandene) == 1 and vorhandene[0] != auto["switch_code"]:
+            auto["switch_code"] = vorhandene[0]
+            config.set("automation", automation.settings(auto))
+            config.save()
+            log.info("Schaltkanal automatisch auf '%s' gesetzt", vorhandene[0])
+            store.log_event("info", f"Schaltkanal automatisch auf '{vorhandene[0]}' gesetzt")
+            current = state.switch_value(auto["switch_code"])
+
     if current is not None:
         note_switch_state(current, auto)
 

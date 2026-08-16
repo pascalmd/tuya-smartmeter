@@ -219,6 +219,7 @@ def build_view(spec: dict[str, Any], status: list[dict[str, Any]]) -> dict[str, 
     switches.sort(key=lambda s: s["code"])
 
     metrics = []
+    settings_shown = []
     phases = []
     for code, value in sorted(values.items()):
         if code in spec_funcs and spec_funcs[code].get("type") == "Boolean":
@@ -234,40 +235,58 @@ def build_view(spec: dict[str, Any], status: list[dict[str, Any]]) -> dict[str, 
         shown: Any = value
         if isinstance(value, (int, float)) and not isinstance(value, bool) and scale:
             shown = round(value / (10 ** scale), scale)
-        metrics.append(
-            {
-                "code": code,
-                "label": _pretty(code),
-                "value": shown,
-                "raw": value,
-                "unit": unit,
-            }
-        )
 
-    return {"switches": switches, "metrics": metrics, "phases": phases}
+        # Tuya liefert Strom in mA und manche Spannungen in mV. In der Anzeige
+        # sind daraus 16000 mA statt 16 A - fuer Menschen unbrauchbar.
+        if unit in ("mA", "mV") and isinstance(shown, (int, float)) and not isinstance(shown, bool):
+            shown = round(shown / 1000, 3)
+            unit = unit[1:]
+        eintrag = {
+            "code": code,
+            "label": _pretty(code),
+            "value": shown,
+            "raw": value,
+            "unit": unit,
+        }
+
+        # Was sich auch stellen laesst, ist ein Sollwert und keine Messung -
+        # etwa ein Abschalt-Timer. Getrennt fuehren, damit die Messwerte
+        # Messwerte bleiben.
+        if code in spec_funcs:
+            settings_shown.append(eintrag)
+        else:
+            metrics.append(eintrag)
+
+    return {
+        "switches": switches,
+        "metrics": metrics,
+        "settings": settings_shown,
+        "phases": phases,
+    }
 
 
+# Klartext fuer die Codes, die uns bisher tatsaechlich begegnet sind. Alles
+# andere faellt auf eine lesbare Schreibweise des Codes zurueck — lieber ein
+# nuechternes "Add ele" als eine ausgedachte Bedeutung.
 _LABELS = {
+    # am DDS238-2 WIFI verifiziert
     "switch": "Schalter",
-    "switch_1": "Schalter 1",
-    "switch_prepayment": "Vorkasse-Schalter",
+    "switch_1": "Schalter",
+    "countdown_1": "Abschalt-Timer",
     "cur_voltage": "Spannung",
     "cur_current": "Strom",
     "cur_power": "Leistung",
+    # bei Tuya-Energiezaehlern gebraeuchlich, hier nicht gegengeprueft
     "add_ele": "Energie (Zuwachs)",
     "forward_energy_total": "Zaehlerstand gesamt",
     "total_forward_energy": "Zaehlerstand gesamt",
-    "energy_reset": "Zaehler zuruecksetzen",
     "phase_a": "Phase A",
     "phase_b": "Phase B",
     "phase_c": "Phase C",
-    "balance_energy": "Restguthaben",
-    "charge_energy": "Guthaben aufgebucht",
     "temp_current": "Temperatur",
-    "leakage_current": "Fehlerstrom",
     "fault": "Stoerung",
-    "relay_status": "Relais nach Stromausfall",
     "child_lock": "Kindersicherung",
+    "relay_status": "Relais nach Stromausfall",
 }
 
 

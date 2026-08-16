@@ -21,6 +21,11 @@
   <div id="metrics" class="muted">wird geladen …</div>
 </div>
 
+<div class="card" id="settings-card" style="display:none">
+  <h2>Geräteeinstellungen</h2>
+  <div id="device-settings" class="muted"></div>
+</div>
+
 <div class="card" id="upcoming-card" style="display:none">
   <h2>Nächste Stunden</h2>
   <div id="upcoming" style="display:flex; gap:4px; align-items:flex-end; overflow-x:auto; padding-bottom:4px"></div>
@@ -138,6 +143,18 @@ async function load() {
       ${fmt(ph.voltage_v)} V · ${fmt(ph.current_a)} A · ${fmt(ph.power_w)} W</div></div>`);
   });
   document.getElementById('metrics').innerHTML = rows.join('') || '<span class="muted">Keine Messwerte.</span>';
+
+  // Einstellwerte des Geräts (z. B. Abschalt-Timer) getrennt zeigen
+  const st = (s.settings || []);
+  const stBox = document.getElementById('settings-card');
+  if (st.length) {
+    stBox.style.display = '';
+    document.getElementById('device-settings').innerHTML = st.map(x =>
+      `<div class="row"><div>${x.label}<div class="muted">${x.code}</div></div>
+       <div class="val">${fmt(x.value)} ${x.unit || ''}</div></div>`).join('');
+  } else {
+    stBox.style.display = 'none';
+  }
 
   // Preisbalken
   const up = (p.upcoming || []);
