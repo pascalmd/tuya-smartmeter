@@ -29,6 +29,11 @@ log = logging.getLogger("tuya-smartmeter")
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+# Tuyas kostenlose "Trial Edition" erlaubt 26.000 API-Aufrufe im Monat - das
+# sind 867 am Tag oder einer alle 100 Sekunden. Bei 10 s Takt waere das
+# Kontingent nach drei Tagen aufgebraucht. 180 s lassen der Automatik reichlich
+# Genauigkeit (die Preise wechseln stuendlich) und verbrauchen nur 60 Prozent.
+TRIAL_CALLS_PER_MONTH = 26_000
 MIN_INTERVAL = 5
 MAX_INTERVAL = 3600
 PRICE_REFRESH_SECONDS = 600  # Preise sind stundenscharf; 10 min reicht reichlich
@@ -95,7 +100,11 @@ class State:
             "offline_minutes": round((time.time() - self.offline_since) / 60)
             if self.offline_since
             else 0,
-            "refresh_seconds": config.get("refresh_seconds", 10),
+            "refresh_seconds": config.get("refresh_seconds", 180),
+            "calls_per_month": api_calls_per_month(
+                int(config.get("refresh_seconds", 180) or 180)
+            ),
+            "trial_call_limit": TRIAL_CALLS_PER_MONTH,
             "polls": self.polls,
             "failures": self.failures,
             "uptime_seconds": round(time.time() - self.started_at),
@@ -397,7 +406,7 @@ async def poller() -> None:
     backoff = 0
     last_prune = 0.0
     while True:
-        interval = int(config.get("refresh_seconds", 10) or 10)
+        interval = int(config.get("refresh_seconds", 180) or 180)
         interval = max(MIN_INTERVAL, min(MAX_INTERVAL, interval))
 
         if config.setup_done and config.get("device_id"):
@@ -458,7 +467,7 @@ async def lifespan(app: FastAPI):
             "(tatsaechlicher Projektstart unbekannt)",
         )
     task = asyncio.create_task(poller(), name="tuya-poller")
-    log.info("Poller gestartet (Intervall %ss)", config.get("refresh_seconds", 10))
+    log.info("Poller gestartet (Intervall %ss)", config.get("refresh_seconds", 180))
     try:
         yield
     finally:
@@ -509,6 +518,14 @@ def page(request: Request, name: str, **ctx: Any) -> HTMLResponse:
 # die Bearbeitung bis zu einen Werktag. Deshalb nicht auf den letzten Druecker
 # erinnern, sondern mit Puffer.
 TRIAL_VORWARNUNG_TAGE = 10
+
+
+def api_calls_per_month(interval_seconds: int) -> int:
+    """Hochrechnung des Tuya-Verbrauchs: Abfragen plus Spezifikation und Token."""
+    if interval_seconds <= 0:
+        return 0
+    pro_tag = 86400 / interval_seconds + 24 + 12
+    return int(pro_tag * 30)
 
 
 def trial_status() -> dict[str, Any]:
@@ -1097,7 +1114,7 @@ async def healthz():
     """Fuer den TrueNAS-Healthcheck: laeuft der Dienst und ist der Stand frisch?"""
     if not config.setup_done:
         return JSONResponse({"status": "setup", "detail": "Ersteinrichtung offen"})
-    interval = int(config.get("refresh_seconds", 10) or 10)
+    interval = int(config.get("refresh_seconds", 180) or 180)
     age = time.time() - state.ts if state.ts else None
     stale = age is not None and age > max(60, interval * 6)
     healthy = state.ok and not stale and state.online is not False

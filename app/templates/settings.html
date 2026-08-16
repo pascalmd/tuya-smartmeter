@@ -1,5 +1,23 @@
 {% extends "base.html" %}
-{% block title %}Einstellungen{% endblock %}
+{% block title %}Einstellungen<script>
+  // Verbrauch live hochrechnen, damit niemand aus Versehen das Kontingent sprengt
+  const KONTINGENT = 26000;
+  const feld = document.getElementById('refresh_seconds');
+  const hinweis = document.getElementById('call-hint');
+  function rechne() {
+    const sek = parseInt(feld.value, 10);
+    if (!sek || sek < 1) { hinweis.textContent = ''; return; }
+    const proMonat = Math.round((86400 / sek + 36) * 30);
+    const quote = Math.round(proMonat / KONTINGENT * 100);
+    hinweis.innerHTML =
+      `Ergibt rund <strong>${proMonat.toLocaleString('de-DE')}</strong> Tuya-Aufrufe im Monat — ` +
+      `<strong>${quote} %</strong> des kostenlosen Kontingents.`;
+    hinweis.style.color = quote > 100 ? 'var(--err)' : (quote > 85 ? 'var(--warn)' : 'var(--ok)');
+  }
+  feld.addEventListener('input', rechne);
+  rechne();
+</script>
+{% endblock %}
 {% block content %}
 
 {% if saved == '1' %}<div class="msg ok">Gespeichert.</div>{% endif %}
@@ -38,9 +56,17 @@
     <label for="refresh_seconds">Abfrageintervall (Sekunden)</label>
     <input type="number" id="refresh_seconds" name="refresh_seconds" min="5" max="3600"
            value="{{ cfg.get('refresh_seconds', 10) }}">
-    <div class="hint">
-      10 s sind ein guter Wert. Die Tuya-Cloud hat ein Tageslimit für Abfragen —
-      unter 5 s geht nicht.
+    <div class="hint" id="call-hint"></div>
+    <div class="msg warn" style="font-size:14px; margin-top:10px">
+      <strong>Das kostenlose Tuya-Kontingent ist der begrenzende Faktor</strong>,
+      nicht die Technik. Die <em>Trial Edition</em> erlaubt 26.000 API-Aufrufe im
+      Monat — das ist einer alle 100 Sekunden. Bei 10 Sekunden Takt wäre das
+      Kontingent nach drei Tagen aufgebraucht.
+      <br><br>
+      <strong>180 Sekunden sind die Empfehlung.</strong> Für die Automatik reicht
+      das mühelos: Die Preise wechseln stündlich, nicht sekündlich. Nur eine
+      Handschaltung am Gerät wird bis zu drei Minuten später bemerkt — schaltest
+      du hier in der Oberfläche, geschieht es sofort.
     </div>
 
     <label for="history_seconds">Messwerte aufzeichnen alle … Sekunden</label>
@@ -141,4 +167,22 @@
     &nbsp;&nbsp;-d '{"code":"switch","value":true}' http://&lt;server&gt;:8099/api/switch</code>
   </p>
 </div>
+<script>
+  // Verbrauch live hochrechnen, damit niemand aus Versehen das Kontingent sprengt
+  const KONTINGENT = 26000;
+  const feld = document.getElementById('refresh_seconds');
+  const hinweis = document.getElementById('call-hint');
+  function rechne() {
+    const sek = parseInt(feld.value, 10);
+    if (!sek || sek < 1) { hinweis.textContent = ''; return; }
+    const proMonat = Math.round((86400 / sek + 36) * 30);
+    const quote = Math.round(proMonat / KONTINGENT * 100);
+    hinweis.innerHTML =
+      `Ergibt rund <strong>${proMonat.toLocaleString('de-DE')}</strong> Tuya-Aufrufe im Monat — ` +
+      `<strong>${quote} %</strong> des kostenlosen Kontingents.`;
+    hinweis.style.color = quote > 100 ? 'var(--err)' : (quote > 85 ? 'var(--warn)' : 'var(--ok)');
+  }
+  feld.addEventListener('input', rechne);
+  rechne();
+</script>
 {% endblock %}

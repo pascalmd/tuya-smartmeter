@@ -25,7 +25,7 @@ _DEFAULTS: dict[str, Any] = {
     "device_id": "",
     "device_name": "",
     "api_token": "",
-    "refresh_seconds": 10,
+    "refresh_seconds": 180,   # Trial-Kontingent: 26.000 Aufrufe/Monat, siehe main.py
     "history_seconds": 60,
     "tuya_setup_ts": 0,        # wann die Tuya-Zugangsdaten zuletzt bestaetigt wurden
     "trial_reminder_days": 25,  # Schaetzmodus: ab wann erinnert wird

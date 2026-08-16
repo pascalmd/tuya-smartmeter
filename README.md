@@ -163,8 +163,16 @@ REST-Endpunkt. Für den Push braucht es ein *classic* Personal Access Token mit
   nicht öffnen. Der Cloud-Weg funktioniert dagegen über Segmentgrenzen hinweg,
   weil beide Seiten nur ausgehend verbinden. Lokal bleibt eine Option für
   Installationen, bei denen Gerät und Server nachweislich im selben Netz liegen.
-- **Tuya-Abfragelimit:** Das kostenlose Kontingent ist endlich; unter 5 s
-  Intervall lässt die App deshalb nicht zu.
+- **Tuya-Abfragelimit — der eigentliche Engpass:** Die kostenlose *Trial Edition*
+  erlaubt 26.000 API-Aufrufe im Monat, also einen alle 100 Sekunden. Das
+  Abfrageintervall ist deshalb auf **180 s** voreingestellt (rund 60 % des
+  Kontingents). Bei 10 s wäre es nach drei Tagen aufgebraucht. Die Einstellungsseite
+  rechnet den Verbrauch beim Tippen mit. Für die Automatik ist das folgenlos —
+  Preise wechseln stündlich; nur eine Schaltung am Gerät wird bis zu ein
+  Intervall später bemerkt.
+
+  Die übrigen Grenzen der Trial Edition sind unkritisch: 50 Geräte, davon 10
+  steuerbare, ein Rechenzentrum.
 - **Schaltkanal:** Die App bietet an, was das Gerät in seiner Spezifikation als
   Boolean meldet — bei den meisten Zählern `switch`.
 
