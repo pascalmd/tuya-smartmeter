@@ -14,7 +14,7 @@ Rechne mit etwa 30 Minuten, davon 20 für die Tuya-Anmeldung.
 |-----|------|
 | TrueNAS SCALE 24.10 oder neuer | ältere Versionen haben das neue Apps-System noch nicht |
 | Tuya-/Smart-Life-Konto | das Konto, in dem der Zähler schon eingerichtet ist |
-| Tibber-Konto mit aktivem Vertrag | für die stündlichen Preise |
+| Preisquelle | Börsenpreise gehen ohne Konto (aWATTar, Energy-Charts). Für den echten Endkundenpreis: Tibber-Konto mit aktivem Vertrag |
 | ~15 Minuten Geduld bei Tuya | die Entwickler-Anmeldung ist etwas sperrig |
 
 ---
@@ -51,12 +51,27 @@ als es ist — du klickst dich einmal durch und kopierst dann zwei Zeichenketten
 
 ---
 
-## Teil 2 — Tibber-Token holen
+## Teil 2 — Preisquelle
+
+Hier gibt es zwei Wege.
+
+**Ohne Konto (Voreinstellung):** aWATTar oder Energy-Charts liefern die
+Börsenpreise für Deutschland beziehungsweise Österreich — ohne Anmeldung, ohne
+Schlüssel. Du musst für diesen Teil gar nichts vorbereiten. In der App stellst
+du später nur ein, wie hoch dein Aufschlag ist (Netzentgelte, Umlagen, Steuern),
+damit aus dem Börsenpreis dein realistischer Endpreis wird.
+
+**Mit Tibber-Konto:** Dann bekommst du deinen echten Endkundenpreis, ohne rechnen
+zu müssen.
 
 1. **developer.tibber.com** öffnen, mit dem normalen Tibber-Konto anmelden.
 2. Unter **Access Token** den persönlichen Token kopieren.
 
 Der Token darf nur lesen — schalten kann damit niemand.
+
+> Wichtig zu wissen: Preisgesteuertes Schalten spart nur dann Geld, wenn dein
+> Stromtarif die Stundenpreise tatsächlich weitergibt. Bei einem Festpreistarif
+> zahlst du rund um die Uhr dasselbe — dann ist die Automatik reine Spielerei.
 
 ---
 
@@ -127,7 +142,7 @@ Dann führt sie dich durch vier Schritte:
    Dazu Access ID und Access Secret von oben eintragen, Rechenzentrum
    *Central Europe*. Die App prüft die Daten sofort.
 2. **Gerät wählen** — die Liste kommt aus deinem Tuya-Konto. Den Zähler anklicken.
-3. **Tibber verbinden** — Token einfügen, dann dein Zuhause auswählen.
+3. **Preisquelle wählen** — Börsenpreise ohne Konto, oder Tibber mit Token.
 4. **Automatik einstellen** — siehe unten.
 
 Danach läuft die App dauerhaft weiter, auch wenn du den Browser schließt.
@@ -146,9 +161,9 @@ ist der Zähler ein, sonst aus.
 Du gibst an: die 6 günstigsten Stunden des Tages. Die App sucht sie aus den
 Tagespreisen heraus und schaltet nur dann ein.
 
-**Tibber-Preisstufen** — folgt Tibbers eigener Einschätzung
-(sehr günstig / günstig / normal / teuer / sehr teuer). Du hakst an, bei welchen
-Stufen eingeschaltet werden soll.
+**Preisstufen** — teilt die Stunden in fünf Stufen ein, gemessen am
+Tagesdurchschnitt: sehr günstig, günstig, normal, teuer, sehr teuer. Du hakst an,
+bei welchen Stufen eingeschaltet werden soll.
 
 Dazu drei Schutzeinstellungen:
 
@@ -173,6 +188,7 @@ eine Einstellung prüfen, bevor sie scharf geschaltet wird.
 | Geräteliste ist leer | „Link App Account" fehlt (Teil 1, Schritt 5), oder App-Konto liegt in einer anderen Region |
 | „No permissions" / Code 1106 | Im Tuya-Projekt fehlt eine der drei APIs, oder der Testzeitraum ist abgelaufen |
 | Tibber meldet 401 | Token abgelaufen — auf developer.tibber.com neu erzeugen |
+| Preise fehlen bei aWATTar | Die Preise für morgen kommen erst nachmittags gegen 14 Uhr |
 | Preise fehlen, Rest läuft | Vertrag ohne stündliche Preise, oder falsches Zuhause ausgewählt |
 | Seite nicht erreichbar | Port in TrueNAS geprüft? Manche Ports sind belegt — dann Node Port ändern |
 | Nach Neustart alles weg | Der `/config`-Ordner war nicht dauerhaft eingebunden |

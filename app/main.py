@@ -1,4 +1,4 @@
-"""Tuya Smartmeter Control — Weboberflaeche, Dauerbetrieb-Poller, Tibber-Automatik."""
+"""Tuya Smartmeter Control — Weboberflaeche, Dauerbetrieb-Poller, Preisautomatik."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 MIN_INTERVAL = 5
 MAX_INTERVAL = 3600
-PRICE_REFRESH_SECONDS = 600  # Tibber-Preise sind stundenscharf; 10 min reicht reichlich
+PRICE_REFRESH_SECONDS = 600  # Preise sind stundenscharf; 10 min reicht reichlich
 
 
 class State:
@@ -48,7 +48,7 @@ class State:
         self.failures: int = 0
         self.started_at: float = time.time()
 
-        # Tibber
+        # Strompreise
         self.prices: dict[str, Any] = {}
         self.prices_ts: float = 0.0
         self.price_error: str = ""
@@ -262,7 +262,7 @@ async def apply_automation() -> None:
     if not state.prices:
         state.last_decision = {
             "desired": None,
-            "reason": state.price_error or "Noch keine Tibber-Preise abgerufen",
+            "reason": state.price_error or "Noch keine Strompreise abgerufen",
             "price_ct": None,
         }
         return
@@ -725,6 +725,9 @@ async def automation_page(request: Request, saved: str = ""):
         switch_codes=switch_codes,
         preview=automation.schedule_preview(state.prices, auto) if state.prices else [],
         price_error=state.price_error,
+        price_source_label=prices.SOURCES.get(
+            prices.settings(config.get("price"))["source"], {}
+        ).get("label", ""),
         decision=state.last_decision,
         saved=saved,
     )

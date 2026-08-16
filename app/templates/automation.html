@@ -4,14 +4,20 @@
 <div class="card">
   <h2>Schritt 4 von 4 — Preisautomatik</h2>
   <p class="muted">
-    Die App vergleicht den aktuellen Tibber-Preis mit deiner Regel und schaltet den
+    Die App vergleicht den aktuellen Strompreis mit deiner Regel und schaltet den
     Zähler entsprechend ein oder aus. Sie läuft dauerhaft im Hintergrund — der Browser
     muss dafür nicht offen sein.
   </p>
+  {% if price_source_label %}
+  <p class="muted" style="margin-bottom:0">
+    Preise kommen von: <strong>{{ price_source_label }}</strong>
+    · <a href="/prices">ändern</a>
+  </p>
+  {% endif %}
 </div>
 
 {% if saved %}<div class="msg ok">Gespeichert und sofort angewendet.</div>{% endif %}
-{% if price_error %}<div class="msg err">Tibber: {{ price_error }}</div>{% endif %}
+{% if price_error %}<div class="msg err">Preisabruf: {{ price_error }}</div>{% endif %}
 
 {% if decision and decision.reason %}
 <div class="msg {{ 'ok' if decision.desired else 'warn' }}">
@@ -50,7 +56,7 @@
     <label for="threshold_ct">Einschalten bis … ct/kWh</label>
     <input type="number" id="threshold_ct" name="threshold_ct" step="0.1" min="0" max="200"
            value="{{ '%.1f'|format(auto.threshold_ct) }}">
-    <div class="hint">Liegt der aktuelle Tibber-Preis darunter oder gleichauf, wird eingeschaltet — sonst aus.</div>
+    <div class="hint">Liegt der aktuelle Strompreis darunter oder gleichauf, wird eingeschaltet — sonst aus.</div>
   </div>
 
   <div class="card mode-block" data-mode="cheapest">
@@ -62,8 +68,11 @@
   </div>
 
   <div class="card mode-block" data-mode="level">
-    <h2>Tibber-Preisstufen</h2>
-    <div class="hint" style="margin-bottom:8px">Bei welchen Stufen soll eingeschaltet werden?</div>
+    <h2>Preisstufen</h2>
+    <div class="hint" style="margin-bottom:8px">
+      Die Stunden werden am Tagesdurchschnitt gemessen und in fünf Stufen
+      eingeteilt. Bei welchen soll eingeschaltet werden?
+    </div>
     {% for level in levels %}
       <label style="display:flex; align-items:center; gap:10px; margin:6px 0; font-weight:400">
         <input type="checkbox" name="levels" value="{{ level }}" style="width:auto"

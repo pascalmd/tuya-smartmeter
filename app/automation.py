@@ -1,6 +1,6 @@
 """Preisgesteuerte Schaltlogik.
 
-Entscheidet anhand der Tibber-Preise, ob der Schaltausgang des Zaehlers an oder
+Entscheidet anhand der Strompreise, ob der Schaltausgang des Zaehlers an oder
 aus sein soll. Die Entscheidung ist absichtlich zustandslos und wird bei jedem
 Durchlauf neu getroffen - so ist sie nach einem Neustart sofort wieder richtig.
 """
@@ -16,7 +16,7 @@ DEFAULTS: dict[str, Any] = {
     "enabled": False,
     "switch_code": "switch",
     "mode": "threshold",          # threshold | cheapest | level
-    "threshold_ct": 25.0,         # ct/kWh, brutto wie von Tibber geliefert
+    "threshold_ct": 25.0,         # ct/kWh, brutto (Endpreis, nicht Boersenpreis)
     "cheapest_hours": 6,          # Anzahl guenstigster Stunden pro Tag
     "levels": ["VERY_CHEAP", "CHEAP"],
     "min_off_minutes": 0,         # Schutz gegen Flattern
@@ -27,7 +27,7 @@ DEFAULTS: dict[str, Any] = {
 MODE_LABELS = {
     "threshold": "Preisschwelle",
     "cheapest": "Guenstigste Stunden",
-    "level": "Tibber-Preisstufe",
+    "level": "Preisstufe",
 }
 
 
@@ -71,7 +71,7 @@ def decide(
     current = prices.get("current") or {}
     total = current.get("total")
     if total is None:
-        return Decision(None, "Kein aktueller Tibber-Preis verfuegbar")
+        return Decision(None, "Kein aktueller Strompreis verfuegbar")
     price_ct = round(total * 100, 2)
 
     # Sicherheitsnetz: nach zu langer Aus-Zeit unabhaengig vom Preis einschalten.

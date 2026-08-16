@@ -2,7 +2,7 @@
 
 Weboberfläche + Dauerdienst, der einen Tuya-Stromzähler (Zielgerät: **KTEM06**)
 über die **Tuya Cloud API** ausliest und schaltet, und ihn anhand der
-**Tibber-Preise** automatisch ein- und ausschaltet.
+**Strompreise** automatisch ein- und ausschaltet (Quelle wählbar).
 
 Gebaut als weitergebbare App: kein Wert ist fest verdrahtet, die komplette
 Einrichtung passiert im Browser. Zielplattform ist eine **TrueNAS-Installation
@@ -23,12 +23,13 @@ Die TrueNAS-Installation über die UI ist der eigentliche Auslieferungsweg und i
 | Datei | Inhalt |
 |-------|--------|
 | `app/tuya.py` | Tuya-OpenAPI-Client (HMAC-SHA256-Signatur, Token-Refresh), Aufbereitung von Status + Spezifikation, Base64-Phasendekoder |
+| `app/prices.py` | Preisquellen: aWATTar DE/AT, Energy-Charts, Tibber. Einheitliches Format, Aggregation auf Stunden, Aufschlag/MwSt, Preisstufen |
 | `app/tibber.py` | Tibber-GraphQL (Homes, Preise heute/morgen), Hilfsfunktionen für günstigste Stunden |
 | `app/automation.py` | Schaltregeln, zustandslose Entscheidung, Vorschauberechnung |
 | `app/store.py` | SQLite-Historie (`/config/history.db`), Messwerte + Ereignisse, 90 Tage Aufbewahrung |
 | `app/config.py` | Konfiguration in `/config/config.json`, scrypt-Passworthash, API-Token |
 | `app/main.py` | FastAPI: Seiten, JSON-API, Hintergrund-Poller |
-| `tests/test_logic.py` | 18 Tests der Schaltlogik und Datenaufbereitung, laufen ohne Cloud |
+| `tests/test_logic.py` | 30 Tests: Schaltregeln, Preisquellen, Fremdschaltungserkennung, Tuya-Aufbereitung — laufen ohne Cloud |
 
 ## Betrieb
 
@@ -36,11 +37,24 @@ Der Poller läuft dauerhaft im Container, unabhängig von geöffneten Browser-Ta
 
 1. Gerätestatus von Tuya holen (Intervall einstellbar, Standard 10 s)
 2. Messwerte in die SQLite-Historie schreiben
-3. Tibber-Preise auffrischen (alle 10 min — Preise sind stundenscharf)
+3. Strompreise auffrischen (alle 10 min — Preise sind stundenscharf)
 4. Regel auswerten, bei Abweichung schalten
 
 Bei Cloud-Fehlern greift ein exponentielles Backoff bis 5 Minuten; die Oberfläche
 zeigt den letzten bekannten Stand weiter und meldet das Alter der Daten.
+
+## Preisquellen
+
+| Quelle | Konto | Liefert |
+|--------|-------|---------|
+| `awattar_de` / `awattar_at` | nein | EPEX-Spot, stündlich |
+| `energy_charts` | nein | Day-Ahead DE-LU (viertelstündlich, wird auf Stunden gemittelt) |
+| `tibber` | ja | Endkundenpreis inklusive aller Abgaben |
+
+Börsenquellen liefern den reinen Beschaffungspreis. Aufschlag (ct/kWh netto) und
+MwSt sind einstellbar, damit die Preisschwelle mit einem realistischen Endpreis
+rechnet. Preisstufen werden für diese Quellen selbst gebildet — relativ zum
+Tagesmittel, weil nur Tibber sie mitliefert.
 
 ## Schaltregeln
 
@@ -48,7 +62,7 @@ zeigt den letzten bekannten Stand weiter und meldet das Alter der Daten.
 |-------|-----------|
 | `threshold` | EIN, solange der aktuelle Preis ≤ Schwelle (ct/kWh) |
 | `cheapest` | EIN in den n günstigsten Stunden des Tages |
-| `level` | EIN bei den ausgewählten Tibber-Preisstufen |
+| `level` | EIN bei den ausgewählten Preisstufen (sehr günstig … sehr teuer) |
 
 Schutzmechanismen: Sicherheitsnetz (Zwangs-EIN nach x Stunden aus),
 Mindest-Aus-Zeit gegen Flattern, Automatikpause nach Handbedienung.
@@ -61,7 +75,7 @@ Zugriff per Session-Cookie oder Kopfzeile `X-API-Token` (Token unter Einstellung
 |----------|-------|
 | `GET /api/state` | kompletter Zustand: Messwerte, Schalter, Preis, Automatik |
 | `POST /api/switch` | `{"code":"switch","value":true}` — schaltet und pausiert die Automatik |
-| `GET /api/prices` | Tibber-Preise roh |
+| `GET /api/prices` | Strompreise roh |
 | `GET /api/series?code=cur_power&hours=24` | Verlauf aus der Historie |
 | `GET /api/events` | Ereignisprotokoll (Schaltvorgänge, Fehler) |
 | `GET /healthz` | Dienststatus, ohne Anmeldung — für Zabbix/Kuma |
@@ -113,5 +127,5 @@ muss das Paket öffentlich sein.
 
 - Zugangsdaten liegen ausschließlich in `/config/config.json` (Rechte 600), nie im Image.
 - Das Oberflächenpasswort wird als scrypt-Hash gespeichert.
-- Kein Telemetrie- oder Fremdaufruf außer Tuya und Tibber.
+- Kein Telemetrie- oder Fremdaufruf außer Tuya und der gewählten Preisquelle.
 - Die App gehört nicht ungeschützt ins Internet — sie schaltet Strom. VPN nutzen.

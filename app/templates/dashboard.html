@@ -61,7 +61,7 @@ async function load() {
   // Meldungen
   const alerts = [];
   if (s.error) alerts.push(['err', 'Tuya: ' + s.error]);
-  if (s.price && s.price.error) alerts.push(['err', 'Tibber: ' + s.price.error]);
+  if (s.price && s.price.error) alerts.push(['err', 'Preisabruf: ' + s.price.error]);
   if (s.age_seconds !== null && s.age_seconds > Math.max(60, s.refresh_seconds * 6))
     alerts.push(['warn', 'Letzte Rückmeldung vor ' + Math.round(s.age_seconds) + ' s.']);
   document.getElementById('alerts').innerHTML = alerts
