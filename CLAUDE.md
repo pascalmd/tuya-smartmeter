@@ -8,6 +8,16 @@ Gebaut als weitergebbare App: kein Wert ist fest verdrahtet, die komplette
 Einrichtung passiert im Browser. Zielplattform ist eine **TrueNAS-Installation
 über die UI** — siehe [INSTALL-TRUENAS.md](INSTALL-TRUENAS.md).
 
+## Wo es läuft
+
+Testinstanz auf **docker01**: `http://192.168.178.17:8099`
+Compose `/DATA/Docker/tuya-smartmeter/`, Daten `/DATA/AppData/tuya-smartmeter/`.
+Image dorthin per `docker save | docker load` von docker02 gebracht (ghcr-Paket
+ist noch privat), Container von Watchtower ausgenommen.
+
+Die TrueNAS-Installation über die UI ist der eigentliche Auslieferungsweg und in
+[INSTALL-TRUENAS.md](INSTALL-TRUENAS.md) beschrieben.
+
 ## Aufbau
 
 | Datei | Inhalt |
