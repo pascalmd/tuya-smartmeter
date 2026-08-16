@@ -132,15 +132,20 @@ python -m unittest discover -s tests -v
 
 Läuft ohne Zugangsdaten und ohne Netz.
 
-## Image bereitstellen
-
-TrueNAS installiert nur fertige Images — ein Build aus dem Quelltext geht dort
-nicht. Also einmal bauen und in eine Registry schieben:
+## Veröffentlichen
 
 ```bash
-docker build -t ghcr.io/<konto>/tuya-smartmeter:latest .
-docker push ghcr.io/<konto>/tuya-smartmeter:latest
+./release.sh 1.4.0
 ```
+
+Prüft, dass alles committet und gepusht ist, lässt die Tests laufen, baut für
+amd64 und arm64, lädt nach GHCR hoch und setzt den Git-Tag.
+
+Der Umweg über ein Skript hat einen Grund: Während der Entwicklung wird das Image
+gern nur lokal gebaut, um es schnell auszuprobieren — die Registry bleibt dabei
+stehen. Genau das ist einmal passiert, mit acht Commits Rückstand, darunter ein
+Fehler, der die Automatik lahmlegte. Wer neu installiert hätte, hätte genau diese
+Fassung bekommen.
 
 Das Paket steht auf **public**, lässt sich also ohne Konto ziehen. Die
 Sichtbarkeit ist nur über die Web-Oberfläche umstellbar, dafür gibt es keinen
