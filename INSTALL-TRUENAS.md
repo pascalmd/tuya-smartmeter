@@ -55,47 +55,44 @@ Tuya lässt fremde Programme **nicht** mit E-Mail und Passwort der App arbeiten.
 Stattdessen brauchst du ein kostenloses Entwickler-Projekt. Das klingt schlimmer,
 als es ist — du klickst dich einmal durch und kopierst dann zwei Zeichenketten.
 
-1. Auf **iot.tuya.com** ein Konto anlegen (kostenlos, siehe Kasten oben — das ist
-   nicht dein App-Konto).
+> **An der echten Oberfläche nachvollzogen** (August 2026). Achtung:
+> **iot.tuya.com leitet inzwischen auf platform.tuya.com um** — beides führt zum Ziel.
+
+1. Auf **iot.tuya.com** (bzw. **platform.tuya.com**) ein Konto anlegen — das ist
+   nicht dein App-Konto, siehe Kasten oben.
 
 2. **Ein Cloud-Projekt anlegen.**
-   Im Menü links den Bereich **Cloud** öffnen, dort den Punkt zum Anlegen eines
-   Projekts — je nach Version *Development*, *Projects* oder direkt ein Knopf
-   **Create Cloud Project**. Beim Anlegen:
-   - Name: frei wählbar, z. B. `Smartmeter`
-   - Industry / Development Method: Standardwerte lassen
-   - **Data Center: Central Europe** ← für Deutschland wichtig
+   In der schmalen Symbolleiste links auf **Cloud**, dann
+   **Cloud Project → Project Management**. Rechts oben der Knopf
+   **Create Cloud Project**.
+   - Name: frei wählbar, z. B. `smartmeter`
+   - Industry: *Smart Home*
+   - **Data Center: Central Europe Data Center** ← für Deutschland
 
-3. **Die nötigen Dienste (APIs) müssen aktiv sein.**
-   Beim Anlegen wird meist danach gefragt; sonst findest du es im Projekt unter
-   **Service API**, *API-Verwaltung* oder ähnlich. Diese drei müssen dabei sein:
-   - `IoT Core`
-   - `Authorization`
-   - `Smart Home Scene Linkage`
+3. **Die nötigen Dienste.** Beim Anlegen wird danach gefragt; im fertigen Projekt
+   stehen sie im Reiter **Service API**. Dabei sein müssen mindestens
+   `IoT Core`, `Authorization Token Management` und `Smart Home Basic Service`.
+   (Ein frisches Projekt hat meist fünf Dienste — die übrigen schaden nicht.)
 
 4. **Die beiden Zeichenketten abholen.**
-   In der Projektübersicht (*Overview*, *Project Overview*) gibt es einen Block
-   namens **Authorization Key** oder **Access Key**. Darin stehen:
-   - **Access ID** (auch *Client ID*) — 20 Zeichen
-   - **Access Secret** (auch *Client Secret*) — 32 Zeichen
+   Reiter **Overview**, Block **Authorization Key**:
+   - **Access ID/Client ID** — 20 Zeichen, im Klartext
+   - **Access Secret/Client Secret** — als `••••••` verborgen
 
-   Das Secret ist standardmäßig als `••••••` verborgen. **Erst auf das
-   Augen-Symbol klicken**, dann kopieren — sonst erwischt du nur die Punkte.
+   Rechts neben dem Secret ist ein **Augen-Symbol**. Erst daraufklicken, dann
+   kopieren — sonst erwischt du nur die Punkte.
 
 5. **Der entscheidende Schritt — hier werden die beiden Konten verbunden:**
 
-   Im Projekt auf den Reiter **Devices**. Darin gibt es einen Punkt, der je nach
-   Version **Link App Account**, **Link Tuya App Account** oder **Link My App**
-   heißt — such nach „Link". Dahinter **Add App Account** bzw. **Add Apps**.
+   Reiter **Devices**, Punkt **Link App Account** (daneben liegen *Link My App*,
+   *Link SaaS* und weitere — such nach „Link App Account"), dahinter
+   **Add App Account**.
 
-   Es erscheint ein **QR-Code**. Den scannst du mit deiner gewohnten
-   **Smart-Life-App**: *Ich → oben rechts das Scan-Symbol*.
+   Es erscheint ein **QR-Code**, den du mit deiner gewohnten **Smart-Life-App**
+   scannst: *Ich → oben rechts das Scan-Symbol*.
 
-   Damit erlaubst du deinem Entwicklerprojekt, deine vorhandenen Geräte zu sehen.
    **An den Geräten selbst ändert sich dabei nichts** — sie werden nicht neu
    angelernt, nicht zurückgesetzt, nicht verschoben.
-
-   Erst nach diesem Schritt sieht das Programm deinen Zähler.
 
 > **Wenn die Menüs anders heißen:** Tuya baut seine Oberfläche regelmäßig um, und
 > zwar schneller, als Anleitungen nachgezogen werden. Halte dich an die
@@ -105,9 +102,30 @@ als es ist — du klickst dich einmal durch und kopierst dann zwei Zeichenketten
 > <https://developer.tuya.com/en/docs/iot/link-devices> — auf Englisch, dafür
 > immer passend zur aktuellen Oberfläche, meist mit Bildern.
 
-> **Hinweis zum Testzeitraum:** Tuya befristet neue Projekte. Läuft die Frist ab,
-> hört der Zugriff auf zu funktionieren. Im Projekt unter **Service → Extend Trial**
-> lässt sie sich kostenlos verlängern. Ein Kalendereintrag lohnt sich.
+### Zum Testzeitraum — und wo das Ablaufdatum steht
+
+Ein neues Projekt hat **genau einen Monat**. Nachgemessen an einem am 16.08.
+angelegten Projekt: *Effective Date* 16.08., *Expiration Date* 16.09.
+
+Die Stelle ist gut versteckt:
+
+```
+Projekt öffnen → Reiter Service API → Zeile "IoT Core" → View Details
+```
+
+Dort steht eine Tabelle mit *Resource Pack Name*, *Effective Date* und
+**Expiration Date**, darunter der Knopf **Extend Trial Period**.
+
+> Einen Reiter namens „Service" gibt es **nicht**. Die Reiter heißen *Overview*,
+> *Authorization*, *Service API*, *Devices*, *Message Service* und
+> *Smart Industry Applications*.
+
+Trag das *Expiration Date* in der App unter **Einstellungen → Tuya-Testzeitraum**
+ein — dann warnt sie exakt zehn Tage vorher, statt zu schätzen.
+
+Die Verlängerung ist ein **Antrag**, kein Klick: Tuya prüft ihn und antwortet
+laut eigener Hilfeseite innerhalb eines Werktages; verlängert wird um bis zu
+sechs Monate. Also rechtzeitig stellen, nicht am letzten Tag.
 
 ---
 
