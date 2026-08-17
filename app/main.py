@@ -128,9 +128,18 @@ class DeviceState:
 
     @property
     def auto(self) -> dict[str, Any]:
-        """Die Regel dieses Geraets."""
+        """Die gemeinsame Regel, angewandt auf dieses Geraet.
+
+        Die Regel selbst gilt fuer alle. Vom Geraet kommen nur zwei Dinge
+        dazu: ob es mitmacht und welcher Ausgang geschaltet wird.
+        """
         eintrag = geraete.holen(self.device_id) or {}
-        return automation.settings(eintrag.get("automation"))
+        auto = automation.settings(config.get("automation"))
+        if eintrag.get("switch_code"):
+            auto["switch_code"] = eintrag["switch_code"]
+        auto["mitmachen"] = bool(eintrag.get("automatik_aktiv", True))
+        auto["enabled"] = bool(auto["enabled"] and auto["mitmachen"])
+        return auto
 
     def label(self) -> str:
         """Kurzname fuers Protokoll — Name, sonst die halbe Kennung."""
@@ -554,7 +563,7 @@ async def poll_device(st: DeviceState | None = None) -> None:
         vorhandene = [sw["code"] for sw in st.view.get("switches", []) if sw.get("present")]
         if len(vorhandene) == 1 and vorhandene[0] != auto["switch_code"]:
             auto["switch_code"] = vorhandene[0]
-            geraete.aktualisieren(device_id, automation=automation.settings(auto))
+            geraete.aktualisieren(device_id, switch_code=vorhandene[0])
             log.info("[%s] Schaltkanal automatisch auf '%s' gesetzt", st.label(), vorhandene[0])
             store.log_event(
                 "info", f"Schaltkanal automatisch auf '{vorhandene[0]}' gesetzt", device=device_id
@@ -644,7 +653,9 @@ async def apply_automation(st: DeviceState | None = None) -> None:
         return
     auto = st.auto
     if not auto["enabled"]:
-        st.last_decision = {"desired": None, "reason": "Automatik ist aus", "price_ct": None}
+        grund = ("Für dieses Gerät ist die Automatik abgeschaltet"
+                 if not auto.get("mitmachen") else "Automatik ist aus")
+        st.last_decision = {"desired": None, "reason": grund, "price_ct": None}
         return
 
     override_until = geraete.handbetrieb_bis(st.device_id)
@@ -1509,7 +1520,7 @@ async def automation_page(request: Request, saved: str = "", device: str = ""):
     if (redirect := guard(request)) is not None:
         return redirect
     st = zustand(device)
-    auto = st.auto
+    auto = automation.settings(config.get("automation"))
     switch_codes = [s["code"] for s in st.view.get("switches", [])] or ["switch"]
     return page(
         request,
@@ -1525,8 +1536,9 @@ async def automation_page(request: Request, saved: str = "", device: str = ""):
             prices.settings(config.get("price"))["source"], {}
         ).get("label", ""),
         decision=st.last_decision,
-        geraet=geraete.holen(st.device_id) or {},
-        geraete_liste=geraete.zusammenfassung(),
+        geraete=[
+            {**geraete.holen(z.device_id), "zustand": z.as_dict()} for z in alle_zustaende()
+        ],
         saved=saved,
     )
 
@@ -1535,8 +1547,7 @@ async def automation_page(request: Request, saved: str = "", device: str = ""):
 async def automation_save(request: Request):
     require_login(request)
     form = await request.form()
-    st = zustand(str(form.get("device") or ""))
-    auto = st.auto
+    auto = automation.settings(config.get("automation"))
     auto.update(
         {
             "enabled": form.get("enabled") == "on",
@@ -1551,20 +1562,28 @@ async def automation_save(request: Request):
             "override_minutes": int(form.get("override_minutes") or 0),
         }
     )
-    geraete.aktualisieren(st.device_id, automation=automation.settings(auto))
+    config.set("automation", automation.settings(auto))
+    config.save()
+
+    # Welche Geraete der Regel folgen. Ohne Angabe im Formular bleibt es beim
+    # bisherigen Stand -- sonst wuerde ein Speichern aus einer aelteren Ansicht
+    # stillschweigend alle Geraete abschalten.
+    if form.get("geraete_gesetzt"):
+        mitmachen = set(form.getlist("mitmachen"))
+        for eintrag in geraete.liste():
+            geraete.aktualisieren(eintrag["id"], automatik_aktiv=eintrag["id"] in mitmachen)
+
     store.log_event(
         "info",
         f"Automatik gespeichert: {'aktiv' if auto['enabled'] else 'aus'}, Modus {auto['mode']}",
-        device=st.device_id,
     )
     await poll_prices(force=True)
-    try:
-        await apply_automation(st)
-    except Exception as exc:
-        log.warning("Automatik nach dem Speichern fehlgeschlagen: %s", exc)
-    ziel = f"/automation?saved=1&device={st.device_id}" if len(geraete.liste()) > 1 \
-        else "/automation?saved=1"
-    return RedirectResponse(ziel, status_code=303)
+    for st in alle_zustaende():
+        try:
+            await apply_automation(st)
+        except Exception as exc:
+            log.warning("[%s] Automatik nach dem Speichern fehlgeschlagen: %s", st.label(), exc)
+    return RedirectResponse("/automation?saved=1", status_code=303)
 
 
 @app.post("/automation/resume")

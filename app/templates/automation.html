@@ -4,9 +4,13 @@
 <div class="card">
   <h2>Preisautomatik</h2>
   <p class="muted">
-    Die App vergleicht den aktuellen Strompreis mit deiner Regel und schaltet den
-    Zähler entsprechend ein oder aus. Sie läuft dauerhaft im Hintergrund — der Browser
+    Die App vergleicht den aktuellen Strompreis mit deiner Regel und schaltet die
+    Geräte entsprechend ein oder aus. Sie läuft dauerhaft im Hintergrund — der Browser
     muss dafür nicht offen sein.
+    {% if geraete and geraete|length > 1 %}
+    <br>Es gibt <strong>eine</strong> Regel für alle Geräte: Wenn Strom billig ist,
+    ist er es für jedes. Unten legst du fest, welche mitmachen.
+    {% endif %}
   </p>
   {% if price_source_label %}
   <p class="muted" style="margin-bottom:0">
@@ -27,7 +31,7 @@
 {% endif %}
 
 <form method="post">
-    {% if geraet %}<input type="hidden" name="device" value="{{ geraet.id }}">{% endif %}
+  <input type="hidden" name="geraete_gesetzt" value="1">
   <div class="card">
     <h2>Grundeinstellung</h2>
     <label style="display:flex; align-items:center; gap:10px; margin-top:0">
@@ -36,13 +40,22 @@
     </label>
     <div class="hint">Ist sie aus, schaltet nur noch die Hand-Bedienung auf der Übersicht.</div>
 
-    <label for="switch_code">Schaltkanal des Zählers</label>
+    {% if geraete|default([])|length > 1 %}
+      {# Bei mehreren Geraeten hat jedes seinen eigenen Ausgang — er steht unten
+         in der Liste. Ein gemeinsames Feld waere hier schlicht falsch. #}
+      <input type="hidden" name="switch_code" value="{{ auto.switch_code }}">
+    {% else %}
+    <label for="switch_code">Schaltkanal</label>
     <select id="switch_code" name="switch_code">
       {% for code in switch_codes %}
         <option value="{{ code }}" {% if auto.switch_code == code %}selected{% endif %}>{{ code }}</option>
       {% endfor %}
     </select>
-    <div class="hint">Bei den meisten Zählern <code>switch</code>. Mehrkanalige Geräte zeigen hier mehrere.</div>
+    <div class="hint">
+      Bei den meisten Zählern <code>switch</code>, bei Steckdosen oft
+      <code>switch_1</code>. Die App erkennt das beim ersten Abruf selbst.
+    </div>
+    {% endif %}
 
     <label for="mode">Regel</label>
     <select id="mode" name="mode" onchange="showMode(this.value)">
@@ -51,6 +64,39 @@
       {% endfor %}
     </select>
   </div>
+
+  {% if geraete %}
+  <div class="card">
+    <h2>Welche Geräte machen mit</h2>
+    <p class="muted" style="margin-top:0">
+      Ein Gerät ohne Häkchen bleibt von der Automatik unberührt — es wird nur
+      noch auf der <a href="/">Übersicht</a> von Hand geschaltet.
+    </p>
+    <div class="scroll">
+      <table style="width:100%; border-collapse:collapse; font-size:14px">
+        <tbody>
+          {% for g in geraete %}
+          <tr style="border-top:1px solid var(--line)">
+            <td style="padding:9px 12px 9px 0">
+              <label style="display:flex; align-items:center; gap:10px; margin:0">
+                <input type="checkbox" name="mitmachen" value="{{ g.id }}" style="width:auto"
+                       {% if g.automatik_aktiv %}checked{% endif %}>
+                <strong>{{ g.name or g.id[:8] }}</strong>
+              </label>
+            </td>
+            <td style="padding:9px 12px 9px 0" class="muted">
+              schaltet <code>{{ g.switch_code or auto.switch_code }}</code>
+            </td>
+            <td style="padding:9px 0" class="muted">
+              {% if g.automatik_aktiv %}folgt der Regel{% else %}nur von Hand{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="card mode-block" data-mode="threshold">
     <h2>Preisschwelle</h2>

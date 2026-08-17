@@ -391,24 +391,42 @@ class Geraetebestand(unittest.TestCase):
         config.set("device_id", "altes-geraet")
         config.set("device_name", "Zaehler")
         config.set("local", {"enabled": True, "ip": "192.168.1.50", "key": "abc"})
-        config.set("automation", {"enabled": True, "mode": "cheapest", "cheapest_hours": 5})
+        config.set("automation", {"enabled": True, "mode": "cheapest", "cheapest_hours": 5,
+                                  "switch_code": "switch_1"})
 
         alle = self.geraete.liste()
         self.assertEqual([e["id"] for e in alle], ["altes-geraet"])
         self.assertEqual(alle[0]["name"], "Zaehler")
         self.assertEqual(alle[0]["local"]["ip"], "192.168.1.50")
-        self.assertEqual(alle[0]["automation"]["cheapest_hours"], 5)
+        # Die Regel bleibt gemeinsam; vom Geraet kommt nur der Schaltkanal.
+        self.assertEqual(config.get("automation")["cheapest_hours"], 5)
+        self.assertTrue(alle[0]["automatik_aktiv"])
 
-    def test_zweites_geraet_hat_eigene_regel(self) -> None:
+    def test_gemeinsame_regel_je_geraet_an_oder_aus(self) -> None:
+        """Eine Regel fuer alle; pro Geraet nur, ob es ihr folgt."""
+        from app import main
+        from app.config import config
+
+        config.set("automation", {"enabled": True, "mode": "threshold", "threshold_ct": 20.0})
         self.geraete.hinzufuegen("zaehler", "Zaehler")
         self.geraete.hinzufuegen("steckdose", "Steckdose 16A")
-        self.geraete.aktualisieren("zaehler", automation={"mode": "cheapest", "enabled": True})
-        self.geraete.aktualisieren("steckdose", automation={"mode": "threshold", "enabled": False})
+        self.geraete.aktualisieren("steckdose", automatik_aktiv=False, switch_code="switch_1")
 
-        self.assertEqual(self.geraete.holen("zaehler")["automation"]["mode"], "cheapest")
-        self.assertEqual(self.geraete.holen("steckdose")["automation"]["mode"], "threshold")
-        self.assertTrue(self.geraete.holen("zaehler")["automation"]["enabled"])
-        self.assertFalse(self.geraete.holen("steckdose")["automation"]["enabled"])
+        z, d = main.zustand("zaehler"), main.zustand("steckdose")
+        self.assertTrue(z.auto["enabled"])
+        self.assertFalse(d.auto["enabled"])          # macht nicht mit
+        self.assertEqual(z.auto["threshold_ct"], 20.0)
+        self.assertEqual(d.auto["threshold_ct"], 20.0)   # dieselbe Regel
+        self.assertEqual(d.auto["switch_code"], "switch_1")
+
+    def test_regel_gilt_sofort_fuer_neue_geraete(self) -> None:
+        from app import main
+        from app.config import config
+
+        config.set("automation", {"enabled": True, "mode": "cheapest", "cheapest_hours": 4})
+        self.geraete.hinzufuegen("spaeter", "Neue Steckdose")
+        self.assertEqual(main.zustand("spaeter").auto["cheapest_hours"], 4)
+        self.assertTrue(main.zustand("spaeter").auto["enabled"])
 
     def test_lokaler_zugang_ist_je_geraet_verschieden(self) -> None:
         self.geraete.hinzufuegen("zaehler", "Zaehler")

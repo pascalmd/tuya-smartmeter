@@ -24,7 +24,13 @@
           </td>
           <td style="padding:9px 12px 9px 0; white-space:nowrap">
             {% for sw in g.switches if sw.present %}
-              <span class="pill" style="color:{{ 'var(--ok)' if sw.value else 'var(--muted)' }}">
+              <button type="button" class="secondary"
+                      style="padding:4px 12px; font-size:13px"
+                      onclick="schalteGeraet('{{ g.device_id }}', '{{ sw.code }}', {{ 'false' if sw.value else 'true' }}, this)">
+                {{ 'ausschalten' if sw.value else 'einschalten' }}
+              </button>
+              <span class="pill" style="margin-left:6px;
+                    color:{{ 'var(--ok)' if sw.value else 'var(--muted)' }}">
                 {{ 'ein' if sw.value else 'aus' }}</span>
             {% endfor %}
           </td>
@@ -32,7 +38,8 @@
             {% for m in g.metrics if m.code == 'cur_power' %}{{ m.value }} {{ m.unit }}{% endfor %}
           </td>
           <td style="padding:9px 0" class="muted">
-            {% if g.automation.enabled %}{{ g.automation.mode_label }}{% else %}von Hand{% endif %}
+            {% if g.automation.enabled %}Automatik · {{ g.automation.mode_label }}
+            {% else %}von Hand{% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -94,6 +101,27 @@ const fmt = (v) => (typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFr
 // auf das erste zurueck.
 const DEVICE_ID = {{ (state.device_id or '') | tojson }};
 const GERAET = DEVICE_ID ? '?device=' + encodeURIComponent(DEVICE_ID) : '';
+
+async function schalteGeraet(device, code, value, knopf) {
+  knopf.disabled = true;
+  try {
+    const resp = await fetch('/api/switch', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code, value, device}),
+    });
+    if (!resp.ok) {
+      const fehler = await resp.json().catch(() => ({}));
+      alert(fehler.detail || 'Schalten fehlgeschlagen');
+      knopf.disabled = false;
+      return;
+    }
+    location.reload();          // die Tabelle kommt vom Server
+  } catch (e) {
+    alert('Keine Verbindung zum Server');
+    knopf.disabled = false;
+  }
+}
 
 async function load() {
   let s;

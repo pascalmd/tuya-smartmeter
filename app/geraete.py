@@ -2,9 +2,13 @@
 
 Bis Version 1.4 kannte die App genau ein Geraet: `device_id`, `device_name`,
 `local` und `automation` lagen einzeln in der Konfiguration. Ab 1.5 gibt es
-eine Liste, in der jedes Geraet seinen eigenen lokalen Zugang und seine eigene
-Regel mitbringt -- ein zweiter Zaehler, eine einfache Schaltsteckdose oder ein
-Geraet, das nur von Hand geschaltet wird, koennen nebeneinander stehen.
+eine Liste -- ein zweiter Zaehler, eine Schaltsteckdose oder ein Geraet, das
+nur von Hand bedient wird, koennen nebeneinander stehen.
+
+**Die Schaltregel ist dabei gemeinsam.** Sie haengt am Strompreis, nicht am
+Geraet: Wenn Strom billig ist, ist er es fuer alle. Je Geraet gibt es deshalb
+nur zwei Dinge -- ob es der Automatik folgt und welchen Ausgang sie schaltet
+(der eine nennt ihn `switch`, der naechste `switch_1`).
 
 Die alten Felder bleiben erhalten und zeigen weiter auf das erste Geraet. Das
 kostet wenig und haelt bestehende Anbindungen (ioBroker, Zabbix, eigene
@@ -32,7 +36,10 @@ VORLAGE: dict[str, Any] = {
         "dp_map": {},
         "fallback_cloud": True,
     },
-    "automation": {},
+    # Die Schaltregel ist gemeinsam (siehe unten). Je Geraet bleibt nur, was
+    # wirklich am Geraet haengt: ob es mitmacht und welcher Ausgang gemeint ist.
+    "automatik_aktiv": True,
+    "switch_code": "",        # leer = beim ersten Abruf selbst erkennen
     "override_until": 0,
     "aufzeichnen": True,
 }
@@ -74,7 +81,7 @@ def _aus_einzelgeraet() -> list[dict[str, Any]]:
     eintrag["id"] = device_id
     eintrag["name"] = config.get("device_name") or ""
     eintrag["local"].update(config.get("local") or {})
-    eintrag["automation"] = dict(config.get("automation") or {})
+    eintrag["switch_code"] = (config.get("automation") or {}).get("switch_code", "")
     eintrag["override_until"] = config.get("override_until") or 0
     return [eintrag]
 
@@ -96,7 +103,6 @@ def speichern(eintraege: list[dict[str, Any]]) -> None:
     config.set("device_id", erstes["id"] if erstes else "")
     config.set("device_name", erstes["name"] if erstes else "")
     config.set("local", dict(erstes["local"]) if erstes else dict(VORLAGE["local"]))
-    config.set("automation", dict(erstes["automation"]) if erstes else {})
     config.set("override_until", erstes["override_until"] if erstes else 0)
     config.save()
 

@@ -70,7 +70,7 @@
 <body>
 {% if show_nav|default(false) %}
 <header>
-  <h1>{{ geraet.name if geraet and geraet.name else (cfg.get('device_name') or 'Tuya Smartmeter') }}</h1>
+  <h1>{% if geraet and geraet.name %}{{ geraet.name }}{% elif geraete_liste|default([])|length > 1 %}Tuya Smartmeter{% else %}{{ cfg.get('device_name') or 'Tuya Smartmeter' }}{% endif %}</h1>
   <nav>
     <a href="/">Übersicht</a>
     <a href="/preise">Preise</a>
