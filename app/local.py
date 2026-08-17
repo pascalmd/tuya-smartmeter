@@ -71,25 +71,50 @@ class LocalDevice:
         d.set_version(version)
         d.set_socketTimeout(self.timeout)
         d.set_socketRetryLimit(1)
+
+        # Ab 3.4 handelt das Geraet zu Beginn einen Sitzungsschluessel aus.
+        # Ohne dauerhafte Verbindung faellt der nach jedem Aufruf weg, und der
+        # naechste beginnt wieder mit dem Handshake - bei manchen Geraeten
+        # scheitert er dann. Bei 3.3 und aelter gibt es den Handshake nicht,
+        # dort waere eine offen gehaltene Verbindung nur ein Dauerverbraucher.
+        if version >= 3.4:
+            d.set_socketPersistent(True)
         return d
+
+    def _schliessen(self, d) -> None:
+        """Dauerverbindung wieder abbauen — sonst haelt jedes Geraet einen Socket."""
+        try:
+            d.close()
+        except Exception:
+            pass
 
     def _status_roh(self) -> dict[str, Any]:
         """Status holen und dabei die passende Protokollversion ermitteln."""
         versionen = (self.version,) if self.version else PROTOKOLL_VERSIONEN
         letzter_fehler = ""
         for v in versionen:
-            antwort = self._verbindung(v).status()
+            d = self._verbindung(v)
+            try:
+                antwort = d.status()
+            except Exception as exc:            # z.B. Handshake-Fehler bei 3.4/3.5
+                letzter_fehler = f"{v}: {exc}"
+                continue
+            finally:
+                self._schliessen(d)
             if isinstance(antwort, dict) and "dps" in antwort:
                 if self.version != v:
                     self.version = v
                     log.info("Protokollversion %s erkannt", v)
                 return antwort["dps"]
-            letzter_fehler = str(antwort)
-        raise LocalError(f"Geraet antwortet nicht ({letzter_fehler[:120]})")
+            letzter_fehler = f"{v}: {antwort}"
+        raise LocalError(f"Geraet antwortet nicht ({letzter_fehler[:140]})")
 
     def _schalten_roh(self, dp: int, wert: Any) -> None:
         d = self._verbindung(self.version or PROTOKOLL_VERSIONEN[0])
-        antwort = d.set_value(dp, wert)
+        try:
+            antwort = d.set_value(dp, wert)
+        finally:
+            self._schliessen(d)
         if isinstance(antwort, dict) and antwort.get("Error"):
             raise LocalError(str(antwort.get("Error"))[:120])
 

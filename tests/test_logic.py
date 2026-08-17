@@ -288,6 +288,93 @@ class OhneSpezifikation(unittest.TestCase):
         self.assertNotIn("switch_1", [m["code"] for m in self.view["metrics"]])
 
 
+class Protokollversionen(unittest.TestCase):
+    """Lokaler Zugang: 3.3 bis 3.5 muessen alle funktionieren.
+
+    Neuere Geraete sprechen 3.4 oder 3.5 und handeln dabei einen
+    Sitzungsschluessel aus. Wird die Version nicht durchprobiert oder die
+    Verbindung fuer den Handshake nicht gehalten, bleibt so ein Geraet lokal
+    stumm -- und faellt still auf den befristeten Cloud-Weg zurueck.
+    """
+
+    class FakeDevice:
+        """Antwortet nur auf eine bestimmte Protokollversion."""
+
+        erzeugt: list = []
+
+        def __init__(self, spricht: float) -> None:
+            self.spricht = spricht
+            self.version = None
+            self.persistent = False
+            self.geschlossen = False
+
+        def set_version(self, v): self.version = v
+        def set_socketTimeout(self, t): pass
+        def set_socketRetryLimit(self, n): pass
+        def set_socketPersistent(self, an): self.persistent = an
+        def close(self): self.geschlossen = True
+
+        def status(self):
+            if self.version == self.spricht:
+                return {"dps": {"1": True, "20": 2310}}
+            return {"Error": "Check device key or version"}
+
+    def geraet_mit(self, spricht: float):
+        from app import local
+
+        erzeugte = []
+
+        def fabrik(version):
+            d = self.FakeDevice(spricht)
+            d.set_version(version)
+            d.set_socketTimeout(5)
+            d.set_socketRetryLimit(1)
+            if version >= 3.4:
+                d.set_socketPersistent(True)
+            erzeugte.append(d)
+            return d
+
+        dev = local.LocalDevice("id", "10.0.0.9", "key", {"1": "switch_1", "20": "cur_voltage"})
+        dev._verbindung = fabrik
+        return dev, erzeugte
+
+    def test_jede_version_wird_gefunden(self) -> None:
+        for spricht in (3.3, 3.4, 3.5, 3.1):
+            dev, _ = self.geraet_mit(spricht)
+            werte = dev._status_roh()
+            self.assertEqual(werte["20"], 2310, f"Version {spricht}")
+            self.assertEqual(dev.version, spricht)
+
+    def test_erkannte_version_wird_behalten(self) -> None:
+        """Danach nicht wieder alle durchprobieren — das kostet bei jedem Abruf Zeit."""
+        dev, erzeugte = self.geraet_mit(3.5)
+        dev._status_roh()
+        anzahl_erste_runde = len(erzeugte)
+        dev._status_roh()
+        self.assertEqual(len(erzeugte) - anzahl_erste_runde, 1)
+
+    def test_handshake_versionen_halten_die_verbindung(self) -> None:
+        dev, erzeugte = self.geraet_mit(3.5)
+        dev._status_roh()
+        nach_version = {d.version: d for d in erzeugte}
+        self.assertFalse(nach_version[3.3].persistent)
+        self.assertTrue(nach_version[3.4].persistent)
+        self.assertTrue(nach_version[3.5].persistent)
+
+    def test_verbindungen_werden_wieder_geschlossen(self) -> None:
+        dev, erzeugte = self.geraet_mit(3.5)
+        dev._status_roh()
+        self.assertTrue(all(d.geschlossen for d in erzeugte))
+
+    def test_stummes_geraet_meldet_klaren_fehler(self) -> None:
+        from app import local
+
+        dev, _ = self.geraet_mit(9.9)          # spricht keine der Versionen
+        with self.assertRaises(local.LocalError) as fehler:
+            dev._status_roh()
+        self.assertIn("antwortet nicht", str(fehler.exception))
+
+
 class Geraetebestand(unittest.TestCase):
     """Mehrere Geraete nebeneinander, jedes mit eigener Regel."""
 
