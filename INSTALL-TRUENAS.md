@@ -8,11 +8,41 @@ Rechne mit etwa 30 Minuten, davon 20 für die Tuya-Anmeldung.
 
 ---
 
+## Das Wichtigste zuerst
+
+> ### Du legst gleich ein **zweites Tuya-Konto** an. Das ist normal und richtig.
+>
+> `iot.tuya.com` (Entwicklerplattform) und die **Smart-Life-App** sind zwei
+> getrennte Systeme mit getrennten Benutzerdatenbanken. Dein App-Login
+> funktioniert auf `iot.tuya.com` **nicht** — nicht weil etwas kaputt ist,
+> sondern weil es das Konto dort schlicht nicht gibt. Du registrierst dich dort
+> also neu.
+>
+> ### Und jetzt der Satz, auf den es ankommt:
+>
+> **Du musst deine Geräte deswegen NICHT neu einrichten.**
+>
+> Kein Zurücksetzen, kein neues Anlernen, kein Umverkabeln, nichts am
+> Sicherungskasten. Das Entwicklerkonto ist nur ein *Schlüssel*, damit Programme
+> mit der Tuya-Cloud reden dürfen. Die Verbindung zu deinen vorhandenen Geräten
+> entsteht später durch **einen QR-Code**, den du mit deiner gewohnten
+> Smart-Life-App scannst (Teil 1, Schritt 5). Danach sieht das Entwicklerkonto
+> deine Geräte — sie bleiben dabei genau da, wo sie sind.
+>
+> Deine App, deine Geräte, dein WLAN bleiben unangetastet.
+
+> **Zu den Klickpfaden:** Tuya und TrueNAS ändern die Bezeichnungen ihrer Menüs
+> regelmäßig. Wenn ein Punkt hier anders heißt als auf deinem Bildschirm, ist das
+> kein Fehler in der Anleitung, sondern eine neuere Version. Deshalb steht
+> unten meist dabei, *wonach* du suchst, nicht nur wo es letztes Jahr stand.
+
+---
+
 ## Was du brauchst
 
 | Was | Wozu |
 |-----|------|
-| TrueNAS SCALE 24.10 oder neuer | ältere Versionen haben das neue Apps-System noch nicht |
+| TrueNAS SCALE 24.10 oder neuer | ältere Versionen haben das neue Apps-System (Docker) noch nicht. Getestet mit 25.10 „Goldeneye" |
 | Tuya-/Smart-Life-Konto | das Konto, in dem der Zähler schon eingerichtet ist |
 | Preisquelle | Börsenpreise gehen ohne Konto (aWATTar, Energy-Charts). Für den echten Endkundenpreis: Tibber-Konto mit aktivem Vertrag |
 | ~15 Minuten Geduld bei Tuya | die Entwickler-Anmeldung ist etwas sperrig |
@@ -39,9 +69,18 @@ als es ist — du klickst dich einmal durch und kopierst dann zwei Zeichenketten
    - **Access Secret / Client Secret**
 
    Beide brauchst du gleich — kopiere sie in einen Notizzettel.
-5. Reiter **Devices → Link App Account → Add App Account**. Es erscheint ein
-   QR-Code. Den scannst du mit der **Smart-Life-App** (bzw. Tuya Smart):
-   *Ich → oben rechts das Scan-Symbol*.
+5. **Der entscheidende Schritt — hier werden die beiden Konten verbunden:**
+
+   Im Projekt auf den Reiter **Devices**. Darin gibt es einen Punkt, der je nach
+   Version **Link App Account**, **Link Tuya App Account** oder **Link My App**
+   heißt — such nach „Link". Dahinter **Add App Account** bzw. **Add Apps**.
+
+   Es erscheint ein **QR-Code**. Den scannst du mit deiner gewohnten
+   **Smart-Life-App**: *Ich → oben rechts das Scan-Symbol*.
+
+   Damit erlaubst du deinem Entwicklerprojekt, deine vorhandenen Geräte zu sehen.
+   **An den Geräten selbst ändert sich dabei nichts** — sie werden nicht neu
+   angelernt, nicht zurückgesetzt, nicht verschoben.
 
    Erst nach diesem Schritt sieht das Programm deinen Zähler.
 
@@ -77,7 +116,10 @@ Der Token darf nur lesen — schalten kann damit niemand.
 
 ## Teil 3 — App in TrueNAS installieren
 
-In TrueNAS: **Apps → Discover Apps → Custom App** (Knopf oben rechts).
+In TrueNAS: **Apps**, dort die Möglichkeit, eine eigene Anwendung anzulegen. Sie
+heißt je nach Version **Custom App**, **Add Custom App** oder versteckt sich hinter
+**Discover Apps** — in neueren Fassungen (25.10 „Goldeneye" und später) sitzt der
+Knopf oben rechts. Such nach „Custom".
 
 Es gibt dort zwei Wege. Der YAML-Weg ist weniger Klickerei, der Formular-Weg
 ist übersichtlicher. Beide führen zum selben Ergebnis — nimm einen.
@@ -184,6 +226,8 @@ eine Einstellung prüfen, bevor sie scharf geschaltet wird.
 
 | Symptom | Ursache und Abhilfe |
 |---------|---------------------|
+| Mein App-Login geht auf iot.tuya.com nicht | Richtig so — das ist ein anderes System. Dort neu registrieren, siehe „Das Wichtigste zuerst". Deine Geräte musst du deswegen **nicht** neu einrichten |
+| Menüpunkt heißt anders als hier beschrieben | Tuya und TrueNAS benennen ihre Menüs häufig um. Nach dem Schlüsselwort suchen („Link", „Custom"), nicht nach dem genauen Wortlaut |
 | „clientId is invalid" | Access ID oder Secret vertippt, oder falsches Rechenzentrum |
 | Geräteliste ist leer | „Link App Account" fehlt (Teil 1, Schritt 5), oder App-Konto liegt in einer anderen Region |
 | „No permissions" / Code 1106 | Im Tuya-Projekt fehlt eine der drei APIs, oder der Testzeitraum ist abgelaufen |

@@ -40,8 +40,14 @@ automatisch die passende Fassung geladen. Ein 64-bit-Betriebssystem ist nötig
 ## Was man braucht
 
 - Ein **Tuya-Entwicklerprojekt** (kostenlos, `iot.tuya.com`) für Access ID und
-  Access Secret. Das App-Konto von Smart Life reicht nicht — die Anleitung
-  erklärt, warum und wie.
+  Access Secret.
+
+  > **Wichtig:** `iot.tuya.com` ist ein **eigenes Konto**, getrennt von der
+  > Smart-Life-App — der App-Login funktioniert dort nicht, man registriert sich
+  > neu. **Die vorhandenen Geräte müssen deswegen aber nicht neu eingerichtet
+  > werden.** Kein Zurücksetzen, kein Neuanlernen. Die Verbindung entsteht durch
+  > einen QR-Code, den man mit der gewohnten App scannt. Wer das nicht weiß,
+  > vermutet leicht, er müsse seine Installation umbauen.
 - Eine **Preisquelle**. aWATTar und Energy-Charts liefern Börsenpreise ohne
   Anmeldung; wer einen dynamischen Tarif bei Tibber hat, bekommt dort den echten
   Endkundenpreis.
