@@ -242,48 +242,178 @@ class Preisquellen(unittest.TestCase):
         self.assertFalse(prices.is_spot("tibber"))
 
 
+class OhneSpezifikation(unittest.TestCase):
+    """Lokaler Zugang und QR-Anmeldung liefern nur Codes und Werte.
+
+    Ohne Entwicklerprojekt gibt es keine Spezifikation. Wird der Schalter dann
+    nicht am Namen erkannt, ist eine einfache Schaltsteckdose auf diesen Wegen
+    ueberhaupt nicht bedienbar.
+    """
+
+    STATUS = [
+        {"code": "switch_1", "value": True},
+        {"code": "countdown_1", "value": 0},
+        {"code": "cur_power", "value": 1234},
+        {"code": "cur_voltage", "value": 2310},
+        {"code": "cur_current", "value": 5300},
+        {"code": "child_lock", "value": False},
+        {"code": "switch_backlight", "value": True},
+    ]
+
+    def setUp(self) -> None:
+        self.view = build_view({}, self.STATUS)
+
+    def test_schalter_wird_am_namen_erkannt(self) -> None:
+        self.assertEqual([s["code"] for s in self.view["switches"]], ["switch_1"])
+        self.assertTrue(self.view["switches"][0]["value"])
+        self.assertTrue(self.view["switches"][0]["present"])
+
+    def test_beleuchtung_ist_kein_ausgang(self) -> None:
+        """switch_backlight faengt mit 'switch' an, schaltet aber nur die Anzeige."""
+        codes = [s["code"] for s in self.view["switches"]]
+        self.assertNotIn("switch_backlight", codes)
+        self.assertNotIn("child_lock", codes)
+
+    def test_messwerte_bekommen_einheit_und_skalierung(self) -> None:
+        werte = {m["code"]: (m["value"], m["unit"]) for m in self.view["metrics"]}
+        self.assertEqual(werte["cur_voltage"], (231.0, "V"))
+        self.assertEqual(werte["cur_power"], (123.4, "W"))
+        self.assertEqual(werte["cur_current"], (5.3, "A"))   # mA -> A
+
+    def test_ja_nein_werte_sind_keine_messwerte(self) -> None:
+        for eintrag in self.view["metrics"]:
+            self.assertNotIsInstance(eintrag["value"], bool, eintrag["code"])
+
+    def test_schalter_steht_nicht_doppelt_in_den_messwerten(self) -> None:
+        self.assertNotIn("switch_1", [m["code"] for m in self.view["metrics"]])
+
+
+class Geraetebestand(unittest.TestCase):
+    """Mehrere Geraete nebeneinander, jedes mit eigener Regel."""
+
+    def setUp(self) -> None:
+        from app import geraete
+        self.geraete = geraete
+        geraete.speichern([])
+
+    def test_uebergang_vom_einzelgeraet(self) -> None:
+        """Wer mit einem Geraet gestartet ist, findet es in der Liste wieder."""
+        from app.config import config
+
+        config.set("devices", None)
+        config.set("device_id", "altes-geraet")
+        config.set("device_name", "Zaehler")
+        config.set("local", {"enabled": True, "ip": "192.168.1.50", "key": "abc"})
+        config.set("automation", {"enabled": True, "mode": "cheapest", "cheapest_hours": 5})
+
+        alle = self.geraete.liste()
+        self.assertEqual([e["id"] for e in alle], ["altes-geraet"])
+        self.assertEqual(alle[0]["name"], "Zaehler")
+        self.assertEqual(alle[0]["local"]["ip"], "192.168.1.50")
+        self.assertEqual(alle[0]["automation"]["cheapest_hours"], 5)
+
+    def test_zweites_geraet_hat_eigene_regel(self) -> None:
+        self.geraete.hinzufuegen("zaehler", "Zaehler")
+        self.geraete.hinzufuegen("steckdose", "Steckdose 16A")
+        self.geraete.aktualisieren("zaehler", automation={"mode": "cheapest", "enabled": True})
+        self.geraete.aktualisieren("steckdose", automation={"mode": "threshold", "enabled": False})
+
+        self.assertEqual(self.geraete.holen("zaehler")["automation"]["mode"], "cheapest")
+        self.assertEqual(self.geraete.holen("steckdose")["automation"]["mode"], "threshold")
+        self.assertTrue(self.geraete.holen("zaehler")["automation"]["enabled"])
+        self.assertFalse(self.geraete.holen("steckdose")["automation"]["enabled"])
+
+    def test_lokaler_zugang_ist_je_geraet_verschieden(self) -> None:
+        self.geraete.hinzufuegen("zaehler", "Zaehler")
+        self.geraete.hinzufuegen("steckdose", "Steckdose")
+        self.geraete.aktualisieren("zaehler", local={"enabled": True, "ip": "10.0.0.5", "key": "k1"})
+        self.geraete.aktualisieren("steckdose", local={"enabled": True, "ip": "10.0.0.6", "key": "k2"})
+        self.assertEqual(self.geraete.holen("zaehler")["local"]["ip"], "10.0.0.5")
+        self.assertEqual(self.geraete.holen("steckdose")["local"]["key"], "k2")
+
+    def test_altfelder_zeigen_auf_das_erste_geraet(self) -> None:
+        """Bestehende Anbindungen lesen weiter das, was sie bisher gelesen haben."""
+        from app.config import config
+
+        self.geraete.hinzufuegen("erstes", "Eins")
+        self.geraete.hinzufuegen("zweites", "Zwei")
+        self.assertEqual(config.get("device_id"), "erstes")
+        self.assertEqual(config.get("device_name"), "Eins")
+
+    def test_entfernen_laesst_die_uebrigen_stehen(self) -> None:
+        self.geraete.hinzufuegen("a", "A")
+        self.geraete.hinzufuegen("b", "B")
+        self.assertTrue(self.geraete.entfernen("a"))
+        self.assertEqual([e["id"] for e in self.geraete.liste()], ["b"])
+        self.assertFalse(self.geraete.entfernen("gibtsnicht"))
+
+    def test_doppeltes_hinzufuegen_benennt_nur_um(self) -> None:
+        self.geraete.hinzufuegen("a", "Alter Name")
+        self.geraete.hinzufuegen("a", "Neuer Name")
+        self.assertEqual(len(self.geraete.liste()), 1)
+        self.assertEqual(self.geraete.holen("a")["name"], "Neuer Name")
+
+
 class Fremdschaltung(unittest.TestCase):
     """Erkennung von Schaltvorgaengen, die nicht aus dieser App kamen."""
 
     def setUp(self) -> None:
-        from app import main
+        from app import geraete, main
         self.main = main
-        self.state = main.state
+        self.geraete = geraete
+        geraete.speichern([{"id": "geraet-a", "name": "Zaehler"}])
+        self.state = main.zustand("geraet-a")
         self.state.last_seen = None
         self.state.expected_state = None
         self.state.last_action = ""
         self.auto = automation.settings(
             {"enabled": True, "switch_code": "switch", "override_minutes": 60}
         )
-        main.config.set("override_until", 0)
+        geraete.handbetrieb_setzen("geraet-a", 0)
+
+    def pause(self) -> float:
+        return self.geraete.handbetrieb_bis("geraet-a")
 
     def test_erste_messung_loest_nichts_aus(self) -> None:
-        self.main.note_switch_state(True, self.auto)
-        self.assertEqual(self.main.config.get("override_until"), 0)
+        self.main.note_switch_state(self.state, True, self.auto)
+        self.assertEqual(self.pause(), 0)
 
     def test_unveraenderter_zustand_loest_nichts_aus(self) -> None:
-        self.main.note_switch_state(True, self.auto)
-        self.main.note_switch_state(True, self.auto)
-        self.assertEqual(self.main.config.get("override_until"), 0)
+        self.main.note_switch_state(self.state, True, self.auto)
+        self.main.note_switch_state(self.state, True, self.auto)
+        self.assertEqual(self.pause(), 0)
 
     def test_eigene_schaltung_gilt_nicht_als_fremd(self) -> None:
-        self.main.note_switch_state(True, self.auto)
+        self.main.note_switch_state(self.state, True, self.auto)
         self.state.expected_state = False          # wir schalten selbst aus
-        self.main.note_switch_state(False, self.auto)
-        self.assertEqual(self.main.config.get("override_until"), 0)
+        self.main.note_switch_state(self.state, False, self.auto)
+        self.assertEqual(self.pause(), 0)
         self.assertIsNone(self.state.expected_state)
 
     def test_fremde_schaltung_pausiert_die_automatik(self) -> None:
-        self.main.note_switch_state(False, self.auto)
-        self.main.note_switch_state(True, self.auto)   # jemand schaltet in der Tuya-App ein
-        self.assertGreater(self.main.config.get("override_until"), time.time())
+        self.main.note_switch_state(self.state, False, self.auto)
+        self.main.note_switch_state(self.state, True, self.auto)  # jemand in der Tuya-App
+        self.assertGreater(self.pause(), time.time())
         self.assertIn("von Hand", self.state.last_action)
 
     def test_ohne_pausenzeit_keine_pause(self) -> None:
         auto = automation.settings({"enabled": True, "override_minutes": 0})
-        self.main.note_switch_state(False, auto)
-        self.main.note_switch_state(True, auto)
-        self.assertEqual(self.main.config.get("override_until"), 0)
+        self.main.note_switch_state(self.state, False, auto)
+        self.main.note_switch_state(self.state, True, auto)
+        self.assertEqual(self.pause(), 0)
+
+    def test_pause_gilt_nur_fuer_das_betroffene_geraet(self) -> None:
+        """Eine Handbedienung an einem Geraet darf das andere nicht anhalten."""
+        self.geraete.speichern([
+            {"id": "geraet-a", "name": "Zaehler"},
+            {"id": "geraet-b", "name": "Steckdose"},
+        ])
+        a = self.main.zustand("geraet-a")
+        a.last_seen = None
+        self.main.note_switch_state(a, False, self.auto)
+        self.main.note_switch_state(a, True, self.auto)
+        self.assertGreater(self.geraete.handbetrieb_bis("geraet-a"), time.time())
+        self.assertEqual(self.geraete.handbetrieb_bis("geraet-b"), 0)
 
 
 class BlockModus(unittest.TestCase):

@@ -25,14 +25,26 @@
 {% if error %}<div class="msg err">{{ error }}</div>{% endif %}
 
 <div class="card">
-  <h2>Gerät und Zugang</h2>
+  <h2>Geräte und Zugang</h2>
   <p class="muted">
-    Welches Gerät geschaltet wird und auf welchem Weg die App es erreicht —
-    lokal, per QR-Anmeldung oder über ein Entwicklerprojekt.
+    Welche Geräte die App steuert und auf welchem Weg sie sie erreicht —
+    lokal, per QR-Anmeldung oder über ein Entwicklerprojekt. Jedes Gerät hat
+    seine eigene Regel; ein Zähler kann nach dem Preis schalten, während eine
+    Steckdose nur von Hand bedient wird.
   </p>
+  {% if geraete_liste %}
+    <p style="margin:0 0 12px">
+      {% for g in geraete_liste %}
+        <span class="pill" style="display:inline-block; margin:0 6px 6px 0; padding:4px 10px;
+              border-radius:999px; border:1px solid var(--line); font-size:13px">
+          {{ g.name }}{% if g.lokal %} <span class="muted">· lokal</span>{% endif %}
+        </span>
+      {% endfor %}
+    </p>
+  {% endif %}
   <p style="margin:0; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
-    <strong>{{ cfg.get('device_name') or 'noch kein Gerät gewählt' }}</strong>
-    <a class="btn" href="/zugang">Gerät und Zugang einrichten</a>
+    <a class="btn" href="/devices">Geräte verwalten</a>
+    <a class="btn secondary" href="/zugang">Zugang einrichten</a>
   </p>
 </div>
 

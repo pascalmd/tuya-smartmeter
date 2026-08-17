@@ -70,7 +70,7 @@
 <body>
 {% if show_nav|default(false) %}
 <header>
-  <h1>{{ cfg.get('device_name') or 'Tuya Smartmeter' }}</h1>
+  <h1>{{ geraet.name if geraet and geraet.name else (cfg.get('device_name') or 'Tuya Smartmeter') }}</h1>
   <nav>
     <a href="/">Übersicht</a>
     <a href="/preise">Preise</a>
@@ -82,6 +82,22 @@
 </header>
 {% endif %}
 <div class="wrap">
+{% if geraet and geraete_liste and geraete_liste|length > 1 %}
+<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px">
+  <span class="muted">Gerät:</span>
+  {% for g in geraete_liste %}
+    {% set aktiv = geraet and geraet.id == g.id %}
+    <a href="?device={{ g.id }}"
+       style="padding:5px 11px; border-radius:999px; font-size:13px; text-decoration:none;
+              border:1px solid {{ 'var(--accent)' if aktiv else 'var(--line)' }};
+              color:{{ 'var(--accent)' if aktiv else 'var(--muted)' }};
+              background:{{ 'color-mix(in srgb, var(--accent) 12%, transparent)' if aktiv else 'transparent' }}">
+      {{ g.name }}{% if g.lokal %} <span title="lokal angebunden">·</span>{% endif %}
+    </a>
+  {% endfor %}
+  <a href="/devices" style="font-size:13px; margin-left:4px">verwalten</a>
+</div>
+{% endif %}
 {% block content %}{% endblock %}
 
 {% if show_nav|default(false) %}

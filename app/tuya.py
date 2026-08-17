@@ -247,6 +247,34 @@ def decode_phase(value: str) -> dict[str, float] | None:
     }
 
 
+# Schaltbare Ausgaenge heissen bei Tuya durchgaengig so. Bewusst eng gehalten:
+# `child_lock` oder `relay_status` sind ebenfalls boolesch, aber keine Ausgaenge
+# -- sie hier aufzunehmen wuerde Bedienelemente erzeugen, die Unfug anrichten.
+SCHALT_PRAEFIXE = ("switch", "socket", "outlet")
+SCHALT_AUSNAHMEN = ("switch_overcharge", "switch_backlight", "switch_led")
+
+# Was die Spezifikation sonst mitliefert: Einheit und Nachkommastellen der
+# gaengigen Messgroessen. Tuya haelt sich hier praktisch ueberall dran.
+STANDARD_EINHEITEN: dict[str, tuple[str, int]] = {
+    "cur_voltage": ("V", 1),
+    "cur_current": ("mA", 0),
+    "cur_power": ("W", 1),
+    "add_ele": ("kWh", 3),
+    "total_ele": ("kWh", 2),
+    "forward_energy_total": ("kWh", 2),
+    "reverse_energy_total": ("kWh", 2),
+    "power_factor": ("", 0),
+    "temp_current": ("°C", 0),
+}
+
+
+def _ist_schaltbar(code: str) -> bool:
+    """Ob ein boolescher Code ein Ausgang ist -- ohne Spezifikation nur am Namen."""
+    if any(code.startswith(a) for a in SCHALT_AUSNAHMEN):
+        return False
+    return any(code.startswith(p) for p in SCHALT_PRAEFIXE)
+
+
 def build_view(spec: dict[str, Any], status: list[dict[str, Any]]) -> dict[str, Any]:
     """Status + Spezifikation zu einer anzeigefertigen Struktur zusammenfuehren.
 
@@ -268,13 +296,31 @@ def build_view(spec: dict[str, Any], status: list[dict[str, Any]]) -> dict[str, 
                 "present": code in values,
             }
         )
+
+    # Ohne Spezifikation muss der Schalter am Namen erkannt werden. Das ist der
+    # Normalfall beim lokalen Zugang und bei der QR-Anmeldung: Beide liefern nur
+    # Codes und Werte, die Beschreibung gibt allein das Entwicklerprojekt heraus.
+    # Ohne diese Zuordnung waere eine simple Schaltsteckdose auf diesen Wegen
+    # ueberhaupt nicht schaltbar -- ihr Schalter stuende als "Messwert" da.
+    bekannt = {s["code"] for s in switches}
+    for code, value in values.items():
+        if code in bekannt or not isinstance(value, bool):
+            continue
+        if not _ist_schaltbar(code):
+            continue
+        switches.append(
+            {"code": code, "label": _pretty(code), "value": bool(value), "present": True}
+        )
     switches.sort(key=lambda s: s["code"])
 
     metrics = []
     settings_shown = []
     phases = []
+    schalter_codes = {s["code"] for s in switches}
     for code, value in sorted(values.items()):
         if code in spec_funcs and spec_funcs[code].get("type") == "Boolean":
+            continue
+        if code in schalter_codes:
             continue
         if code.startswith("phase_") and isinstance(value, str):
             decoded = decode_phase(value)
@@ -284,6 +330,8 @@ def build_view(spec: dict[str, Any], status: list[dict[str, Any]]) -> dict[str, 
         meta = spec_status.get(code, {})
         scale = int(meta.get("scale", 0) or 0)
         unit = (meta.get("unit") or "").strip()
+        if not meta and code in STANDARD_EINHEITEN:
+            unit, scale = STANDARD_EINHEITEN[code]
         shown: Any = value
         if isinstance(value, (int, float)) and not isinstance(value, bool) and scale:
             shown = round(value / (10 ** scale), scale)
@@ -303,8 +351,10 @@ def build_view(spec: dict[str, Any], status: list[dict[str, Any]]) -> dict[str, 
 
         # Was sich auch stellen laesst, ist ein Sollwert und keine Messung -
         # etwa ein Abschalt-Timer. Getrennt fuehren, damit die Messwerte
-        # Messwerte bleiben.
-        if code in spec_funcs:
+        # Messwerte bleiben. Ein Ja/Nein-Wert ist ohnehin nie eine Messung:
+        # Kindersicherung oder Anzeigebeleuchtung gehoeren zu den Zustaenden,
+        # sonst stehen sie in der Messwertliste und landen in der Historie.
+        if code in spec_funcs or isinstance(value, bool):
             settings_shown.append(eintrag)
         else:
             metrics.append(eintrag)

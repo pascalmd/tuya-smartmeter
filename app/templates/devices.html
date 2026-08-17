@@ -1,48 +1,177 @@
 {% extends "base.html" %}
-{% block title %}Gerät wählen{% endblock %}
+{% block title %}Geräte{% endblock %}
 {% block content %}
-<div class="card">
-  <h2>Gerät wählen</h2>
-  <p class="muted">
-    Diese Liste kommt aus deinem Tuya-Konto. Wähle den Stromzähler aus (z. B. KTEM06).
-  </p>
-</div>
 
-{% if error %}<div class="msg err">{{ error }}</div>{% endif %}
-
-{% if devices %}
-  {% for device in devices %}
-  <form method="post" class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap">
-    <div>
-      <strong>{{ device.name or device.id }}</strong>
-      {% if cfg.get('device_id') == device.id %}
-        <span class="msg ok" style="display:inline-block; padding:2px 8px; margin:0 0 0 8px">aktiv</span>
-      {% endif %}
-      <div class="muted">
-        {{ device.product_name or device.category or '' }}
-        · {{ 'online' if device.online else 'offline' }}
-        · <code>{{ device.id }}</code>
-      </div>
-    </div>
-    <input type="hidden" name="device_id" value="{{ device.id }}">
-    <input type="hidden" name="device_name" value="{{ device.name or device.id }}">
-    <button type="submit" {% if cfg.get('device_id') == device.id %}class="secondary"{% endif %}>
-      {{ 'Erneut wählen' if cfg.get('device_id') == device.id else 'Dieses Gerät' }}
-    </button>
-  </form>
-  {% endfor %}
-{% elif not error %}
+{% if meldung %}
+  <div class="msg {{ 'err' if saved == 'error' else 'ok' }}">{{ meldung }}</div>
+{% endif %}
+{% if error %}
   <div class="msg warn">
-    Es wurden keine Geräte gefunden. Im Tuya-Projekt unter
-    <strong>Devices → Link App Account</strong> das App-Konto verknüpfen und die Seite neu laden.
+    <strong>Die Liste aus dem Tuya-Konto ist gerade nicht abrufbar.</strong>
+    {% if 'Zugangsdaten fehlen' in error %}
+      Dafür braucht es einen Zugang — am einfachsten die
+      <a href="/zugang">QR-Anmeldung</a>, die ohne Entwicklerkonto auskommt.
+      Ein Gerät, dessen Kennung du kennst, kannst du unten auch von Hand eintragen.
+    {% else %}
+      {{ error }}
+    {% endif %}
   </div>
 {% endif %}
 
 <div class="card">
-  <p class="muted">
-    Nichts dabei? Prüfe, ob das Gerät in der Smart-Life-App auftaucht und ob das Projekt
-    im selben Rechenzentrum (Central Europe) liegt wie das App-Konto.
+  <h2>Deine Geräte</h2>
+  {% if meine %}
+    <p class="muted" style="margin-top:0">
+      Jedes Gerät hat seine eigene Regel und seinen eigenen Zugang. Ein Zähler
+      kann nach dem Preis schalten, während eine Steckdose nur von Hand bedient
+      wird — sie stören sich nicht.
+    </p>
+    <div class="scroll">
+      <table style="width:100%; border-collapse:collapse; font-size:14px">
+        <thead>
+          <tr style="text-align:left; color:var(--muted)">
+            <th style="padding:6px 10px 6px 0">Gerät</th>
+            <th style="padding:6px 10px 6px 0">Weg</th>
+            <th style="padding:6px 10px 6px 0">Zustand</th>
+            <th style="padding:6px 10px 6px 0">Automatik</th>
+            <th style="padding:6px 0"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in meine %}
+          <tr style="border-top:1px solid var(--line)">
+            <td style="padding:9px 10px 9px 0">
+              <strong>{{ g.device_name or g.device_id[:8] }}</strong>
+              <div class="muted"><code>{{ g.device_id }}</code></div>
+            </td>
+            <td style="padding:9px 10px 9px 0">
+              {% if g.kanal == 'lokal' %}<span style="color:var(--ok)">lokal</span>
+              {% elif g.kanal == 'qr' %}QR-Anmeldung
+              {% elif g.kanal == 'cloud' %}Entwicklerprojekt
+              {% else %}<span class="muted">noch nicht erreicht</span>{% endif %}
+            </td>
+            <td style="padding:9px 10px 9px 0">
+              {% if g.online %}<span style="color:var(--ok)">online</span>
+              {% elif g.online is none %}<span class="muted">—</span>
+              {% else %}<span style="color:var(--err)">offline</span>{% endif %}
+            </td>
+            <td style="padding:9px 10px 9px 0">
+              {% if g.automation.enabled %}{{ g.automation.mode_label }}
+              {% else %}<span class="muted">aus (nur von Hand)</span>{% endif %}
+            </td>
+            <td style="padding:9px 0; white-space:nowrap">
+              <a class="btn secondary" href="/zugang?device={{ g.device_id }}"
+                 style="padding:5px 10px; font-size:13px">Zugang</a>
+              <a class="btn secondary" href="/automation?device={{ g.device_id }}"
+                 style="padding:5px 10px; font-size:13px">Regel</a>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="5" style="padding:0 0 12px">
+              <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center">
+                <form method="post" action="/devices/umbenennen"
+                      style="display:flex; gap:6px; align-items:center">
+                  <input type="hidden" name="device_id" value="{{ g.device_id }}">
+                  <input type="text" name="name" value="{{ g.device_name }}"
+                         style="width:190px; padding:5px 8px; font-size:13px"
+                         data-bwignore="1" data-lpignore="true" data-1p-ignore>
+                  <button class="secondary" type="submit"
+                          style="padding:5px 10px; font-size:13px">Umbenennen</button>
+                </form>
+
+                <form method="post" action="/devices/aufzeichnen"
+                      style="display:flex; gap:7px; align-items:center">
+                  <input type="hidden" name="device_id" value="{{ g.device_id }}">
+                  <label style="display:flex; gap:7px; align-items:center; margin:0; font-size:13px">
+                    <input type="checkbox" name="aufzeichnen" style="width:auto"
+                           {% if g.aufzeichnen is not defined or g.aufzeichnen %}checked{% endif %}
+                           onchange="this.form.submit()">
+                    Messwerte aufzeichnen
+                  </label>
+                </form>
+
+                <form method="post" action="/devices/entfernen"
+                      onsubmit="return confirm('{{ g.device_name or g.device_id }} wirklich entfernen? Die aufgezeichneten Messwerte bleiben erhalten.')">
+                  <input type="hidden" name="device_id" value="{{ g.device_id }}">
+                  <button class="secondary" type="submit"
+                          style="padding:5px 10px; font-size:13px; color:var(--err)">Entfernen</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted" style="margin:0">
+      Noch keins übernommen. Wähle unten aus, was in deinem Tuya-Konto steht.
+    </p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Aus deinem Konto</h2>
+  <p class="muted" style="margin-top:0">
+    {% if quelle %}Gelesen über: {{ quelle }}.{% endif %}
+    Wähle aus, was die App steuern soll — ein Zähler, eine Schaltsteckdose,
+    beides nebeneinander.
   </p>
-  <a class="btn secondary" href="/devices">Liste neu laden</a>
+
+  {% if devices %}
+    {% for device in devices %}
+    <div style="border-top:1px solid var(--line); padding:11px 0; display:flex;
+                align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap">
+      <div>
+        <strong>{{ device.name or device.id }}</strong>
+        {% if device.id in uebernommen %}
+          <span class="muted" style="margin-left:8px">bereits übernommen</span>
+        {% endif %}
+        <div class="muted">
+          {{ device.product_name or device.category or '' }}
+          · {{ 'online' if device.online else 'offline' }}
+          · <code>{{ device.id }}</code>
+        </div>
+      </div>
+      {% if device.id not in uebernommen %}
+      <form method="post">
+        <input type="hidden" name="device_id" value="{{ device.id }}">
+        <input type="hidden" name="device_name" value="{{ device.name or device.id }}">
+        <button type="submit">Übernehmen</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% elif not error %}
+    <div class="msg warn" style="margin-top:12px">
+      Es wurden keine Geräte gefunden. Entweder ist noch kein Zugang eingerichtet
+      (<a href="/zugang">QR-Anmeldung</a> genügt) oder im Tuya-Projekt fehlt unter
+      <strong>Devices → Link App Account</strong> die Verknüpfung des App-Kontos.
+    </div>
+  {% endif %}
+
+  <p style="margin:14px 0 0"><a class="btn secondary" href="/devices">Liste neu laden</a></p>
+</div>
+
+<div class="card">
+  <h2>Von Hand eintragen</h2>
+  <p class="muted" style="margin-top:0">
+    Wenn die Liste leer bleibt, aber die Gerätekennung bekannt ist — sie steht in
+    der Smart-Life-App unter <em>Geräteinformationen</em>.
+  </p>
+  <form method="post" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end">
+    <span style="flex:1 1 260px">
+      <label for="device_id" style="margin-top:0">Gerätekennung</label>
+      <input type="text" id="device_id" name="device_id" required spellcheck="false"
+             placeholder="bfa1b2c3d4e5f6..." autocomplete="off"
+             data-bwignore="1" data-lpignore="true" data-1p-ignore>
+    </span>
+    <span style="flex:1 1 180px">
+      <label for="device_name" style="margin-top:0">Name</label>
+      <input type="text" id="device_name" name="device_name" placeholder="Steckdose Keller"
+             autocomplete="off" data-bwignore="1" data-lpignore="true" data-1p-ignore>
+    </span>
+    <button type="submit">Hinzufügen</button>
+  </form>
 </div>
 {% endblock %}

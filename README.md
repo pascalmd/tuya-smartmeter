@@ -1,10 +1,12 @@
 # tuya-smartmeter
 
-Schaltet einen Tuya-Stromzähler automatisch nach dem aktuellen Strompreis —
+Schaltet Tuya-Geräte automatisch nach dem aktuellen Strompreis —
 ein wenn Strom günstig ist, aus wenn er teuer ist.
 
 Entwickelt für den **KTEM06**, funktioniert aber mit jedem Tuya-Gerät, das einen
-schaltbaren Ausgang meldet. Läuft als Dienst im Container, bedient wird sie über
+schaltbaren Ausgang meldet — auch mit mehreren gleichzeitig, etwa einem Zähler
+und einer Schaltsteckdose. Jedes Gerät bekommt seine eigene Regel; eines kann
+nach dem Preis schalten, während ein anderes nur von Hand bedient wird. Läuft als Dienst im Container, bedient wird sie über
 eine Weboberfläche.
 
 **Keine Konfigurationsdateien:** Die komplette Einrichtung — Zugangsdaten, Gerät,
@@ -150,10 +152,16 @@ Zugriff per Session-Cookie oder Kopfzeile `X-API-Token` (Token unter Einstellung
 | Endpunkt | Zweck |
 |----------|-------|
 | `GET /api/state` | kompletter Zustand: Messwerte, Schalter, Preis, Automatik |
+| `GET /api/state?device=<id>` | dasselbe für ein bestimmtes Gerät |
+| `GET /api/devices` | alle Geräte mit vollem Zustand |
 | `POST /api/switch` | `{"code":"switch","value":true}` — schaltet und pausiert die Automatik |
 | `GET /api/prices` | Strompreise roh |
 | `GET /api/series?code=cur_power&hours=24` | Verlauf aus der Historie |
 | `GET /api/events` | Ereignisprotokoll (Schaltvorgänge, Fehler) |
+
+Ohne `device` gilt immer das erste Gerät — bestehende Anbindungen lesen also
+unverändert weiter. Mehrere Geräte ansprechen: `?device=<Kennung>` an der URL,
+beim Schalten `{"code":"switch_1","value":true,"device":"<Kennung>"}`.
 | `GET /healthz` | Dienststatus, ohne Anmeldung — für Zabbix/Kuma |
 
 ## Tests

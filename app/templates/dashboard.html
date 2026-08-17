@@ -1,8 +1,46 @@
 {% extends "base.html" %}
-{% block title %}{{ cfg.get('device_name') or 'Übersicht' }}{% endblock %}
+{% block title %}{{ state.device_name or 'Übersicht' }}{% endblock %}
 {% block content %}
 
 <div id="alerts"></div>
+
+{% if uebersicht and uebersicht|length > 1 %}
+<div class="card">
+  <h2>Alle Geräte</h2>
+  <div class="scroll">
+    <table style="width:100%; border-collapse:collapse; font-size:14px">
+      <tbody>
+        {% for g in uebersicht %}
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:9px 12px 9px 0">
+            <a href="/?device={{ g.device_id }}"
+               style="{% if g.device_id == state.device_id %}font-weight:600{% endif %}">
+              {{ g.device_name or g.device_id[:8] }}</a>
+          </td>
+          <td style="padding:9px 12px 9px 0; white-space:nowrap">
+            {% if g.online %}<span style="color:var(--ok)">online</span>
+            {% elif g.online is none %}<span class="muted">—</span>
+            {% else %}<span style="color:var(--err)">offline</span>{% endif %}
+          </td>
+          <td style="padding:9px 12px 9px 0; white-space:nowrap">
+            {% for sw in g.switches if sw.present %}
+              <span class="pill" style="color:{{ 'var(--ok)' if sw.value else 'var(--muted)' }}">
+                {{ 'ein' if sw.value else 'aus' }}</span>
+            {% endfor %}
+          </td>
+          <td style="padding:9px 12px 9px 0; font-variant-numeric:tabular-nums; white-space:nowrap">
+            {% for m in g.metrics if m.code == 'cur_power' %}{{ m.value }} {{ m.unit }}{% endfor %}
+          </td>
+          <td style="padding:9px 0" class="muted">
+            {% if g.automation.enabled %}{{ g.automation.mode_label }}{% else %}von Hand{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
 <div class="card">
   <h2>Strompreis</h2>
@@ -52,10 +90,15 @@
 <script>
 const fmt = (v) => (typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits: 2}) : v);
 
+// Welches Geraet die Seite zeigt — sonst springt die Anzeige beim Aktualisieren
+// auf das erste zurueck.
+const DEVICE_ID = {{ (state.device_id or '') | tojson }};
+const GERAET = DEVICE_ID ? '?device=' + encodeURIComponent(DEVICE_ID) : '';
+
 async function load() {
   let s;
   try {
-    const resp = await fetch('/api/state', {credentials: 'same-origin'});
+    const resp = await fetch('/api/state' + GERAET, {credentials: 'same-origin'});
     if (resp.status === 401) { location.href = '/login'; return; }
     s = await resp.json();
   } catch (e) {
@@ -198,7 +241,7 @@ async function setSwitch(code, value) {
       method: 'POST',
       credentials: 'same-origin',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({code, value}),
+      body: JSON.stringify({code, value, device: DEVICE_ID}),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({detail: 'Unbekannter Fehler'}));

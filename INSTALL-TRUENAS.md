@@ -266,7 +266,9 @@ Dann führt sie dich durch vier Schritte:
 1. **Passwort festlegen** — damit meldest du dich künftig hier an.
    Dazu Access ID und Access Secret von oben eintragen, Rechenzentrum
    *Central Europe*. Die App prüft die Daten sofort.
-2. **Gerät wählen** — die Liste kommt aus deinem Tuya-Konto. Den Zähler anklicken.
+2. **Gerät übernehmen** — die Liste kommt aus deinem Tuya-Konto. Den Zähler
+   anklicken. Weitere Geräte — eine Schaltsteckdose etwa — kannst du später
+   unter *Einstellungen → Geräte* dazunehmen; jedes bekommt seine eigene Regel.
 3. **Preisquelle wählen** — Börsenpreise ohne Konto, oder Tibber mit Token.
 4. **Automatik einstellen** — siehe unten.
 

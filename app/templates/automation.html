@@ -27,6 +27,7 @@
 {% endif %}
 
 <form method="post">
+    {% if geraet %}<input type="hidden" name="device" value="{{ geraet.id }}">{% endif %}
   <div class="card">
     <h2>Grundeinstellung</h2>
     <label style="display:flex; align-items:center; gap:10px; margin-top:0">

@@ -93,6 +93,7 @@
   {% endif %}
 
   <form method="post" action="/zugang/lokal">
+    {% if geraet %}<input type="hidden" name="device" value="{{ geraet.id }}">{% endif %}
     <label style="display:flex; align-items:center; gap:10px; margin-top:0">
       <input type="checkbox" name="aktiv" style="width:auto" {% if lokal.get('enabled') %}checked{% endif %}>
       Lokalen Zugang verwenden
@@ -111,6 +112,7 @@
   </form>
 
   <form method="post" action="/zugang/lokal/suchen">
+    {% if geraet %}<input type="hidden" name="device" value="{{ geraet.id }}">{% endif %}
     <button class="secondary" type="submit">Im Netz suchen</button>
     <div class="hint" style="margin-top:6px">
       Findet nur Geräte im selben Netzabschnitt. Hängt der Zähler in einem
