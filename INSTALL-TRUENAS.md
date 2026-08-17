@@ -145,30 +145,33 @@ Knopf oben rechts. Such nach „Custom".
 Es gibt dort zwei Wege. Der YAML-Weg ist weniger Klickerei, der Formular-Weg
 ist übersichtlicher. Beide führen zum selben Ergebnis — nimm einen.
 
-### Der YAML-Weg (empfohlen)
+> **Nachfolgend an einer laufenden TrueNAS 25.10.5 „Goldeye" durchgeklickt.**
+> Die Bezeichnungen stammen aus der Oberfläche selbst, nicht aus dem Gedächtnis.
 
-> Nachfolgend geprüft auf **TrueNAS 25.10.5 „Goldeye"** — die Bezeichnungen
-> stammen aus der laufenden Oberfläche, nicht aus dem Gedächtnis.
+### Weg 1 — Install via YAML (empfohlen)
 
-1. Links im Menü **Applications** (nicht „Apps").
+Zwei Felder, fertig. Unempfindlich gegen Umbenennungen.
 
-2. Reiter **Discover**.
+1. Links im Menü **Apps**.
+   (Die Überschrift der Seite lautet *Applications* — der Menüpunkt heißt **Apps**.)
 
-3. Dort den Knopf **Custom App via YAML**.
-   Daneben gibt es **Custom App** — das ist das Formular, nicht dieser Weg.
+2. Seite **Discover**.
 
-4. Der Bildschirm heißt **Install via YAML** und hat genau **zwei** Felder:
+3. Oben rechts steht ein blauer Knopf **Custom App**. Der ist es **nicht**.
+   Direkt daneben ist ein **⋮**-Symbol — dort hinein, Eintrag
+   **Install via YAML**.
+
+4. Von rechts fährt ein Fenster **Install via YAML** herein mit zwei Feldern:
 
    | Feld | Wert |
    |------|------|
-   | **Name** (Platzhalter zeigt „Application Name") | `tuya-smartmeter` |
+   | **Name** | `tuya-smartmeter` |
    | **Custom Config** | der YAML-Text unten |
 
-   Zum Namen: nur Kleinbuchstaben und Ziffern, Bindestrich erlaubt, aber nicht
-   am Anfang oder Ende.
+   Zum Namen: Kleinbuchstaben und Ziffern, Bindestrich erlaubt, aber nicht am
+   Anfang oder Ende.
 
-5. In **Custom Config** einfügen — der Text **muss** mit `services:` beginnen,
-   das ist seit 25.10 Pflicht:
+5. **Custom Config** ist ein Editor mit Zeilennummern. Hier hinein:
 
 ```yaml
 services:
@@ -183,18 +186,43 @@ services:
       TZ: Europe/Berlin
 ```
 
-   Anzupassen ist nur `/mnt/DEIN-POOL/…` auf dein Dataset.
+   Der Text **muss** mit `services:` beginnen — seit 25.10 Pflicht. Anzupassen
+   ist nur `/mnt/DEIN-POOL/…` auf ein vorhandenes Dataset.
 
-6. **Install** drücken. Nach etwa einer Minute steht die App unter
-   **Applications → Installed** auf `Running`.
+6. Der Knopf heißt **Save**, nicht „Install".
 
-### Und der Formular-Weg?
+Nach etwa einer Minute steht die App unter **Apps → Installed** auf `Running`.
 
-Den gibt es zwar noch (**Discover → Custom App**), aber er ist umständlicher:
-Ports, Speicher und Umgebungsvariablen werden dort einzeln angelegt, und die
-Eingabefelder erscheinen jeweils erst nach einem Klick auf **Add**. Die
-Feldbezeichnungen haben sich zwischen den Versionen mehrfach geändert. Für diese
-App bringt er keinen Vorteil — nimm den YAML-Weg.
+### Weg 2 — Custom App (das Formular)
+
+Derselbe blaue Knopf **Custom App** auf der Discover-Seite führt zu einer Seite
+namens **Install Custom App**. Rechts gibt es eine Sprungliste über alle
+Abschnitte. Auszufüllen ist:
+
+| Abschnitt | Feld | Wert |
+|-----------|------|------|
+| Application name | **Application Name** | `tuya-smartmeter` |
+| | **Version** | vorgegeben lassen |
+| Image Configuration | **Repository** | `ghcr.io/pascalmd/tuya-smartmeter` |
+| | **Tag** | `latest` (steht schon da) |
+| | **Pull Policy** | Vorgabe lassen |
+| Container Configuration | **Timezone** | `Europe/Berlin` |
+| | **Restart Policy** | `unless-stopped` |
+| Network Configuration | **Ports** → *Add* | **Host Port** `8099`, **Container Port** `8099` |
+| Storage Configuration | **Storage** → *Add* | **Type**: `ixVolume` (Vorgabe), **Mount Path** `/config` |
+
+> **Die häufigste Stolperstelle:** Bei *Ports*, *Storage* und *Environment
+> Variables* steht zunächst „No items have been added yet." — die Eingabefelder
+> erscheinen erst nach einem Klick auf **Add**. Wer den übersieht, sucht Felder,
+> die es scheinbar nicht gibt.
+
+> **Zum Speicher:** Die Vorgabe **ixVolume** bedeutet, dass TrueNAS das Dataset
+> selbst anlegt und verwaltet — dann musst du vorher keines erstellen. Wer den
+> Ordner lieber selbst bestimmt, stellt **Type** auf *Host Path* und wählt sein
+> Dataset.
+
+Beide Wege führen zum selben Ergebnis. Der YAML-Weg ist kürzer und weniger
+fehleranfällig.
 
 > **Wichtig:** Der Ordner unter `/config` muss dauerhaft sein. Dort liegen deine
 > Zugangsdaten und die Messwert-Historie. Ohne ihn ist nach jedem Neustart alles weg.
