@@ -74,6 +74,7 @@ class State:
         # Schaltzustand nachhalten, um fremde Eingriffe zu erkennen
         self.last_seen: bool | None = None
         self.expected_state: bool | None = None
+        self.block: set[str] = set()   # laufender Block im Modus "am Stueck"
 
         self.last_record_ts: float = 0.0
         self.online: bool | None = None
@@ -503,8 +504,11 @@ async def apply_automation() -> None:
         return
 
     decision = automation.decide(
-        state.prices, auto, dt.datetime.now(dt.timezone.utc), off_since=state.off_since
+        state.prices, auto, dt.datetime.now(dt.timezone.utc).astimezone(),
+        off_since=state.off_since, block=state.block,
     )
+    if decision.block:
+        state.block = decision.block
     state.last_decision = decision.as_dict()
     if decision.desired is None:
         return

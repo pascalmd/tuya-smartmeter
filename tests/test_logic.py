@@ -468,5 +468,53 @@ class LokaleUebersetzung(unittest.TestCase):
             d._code_zu_dp("gibt_es_nicht")
 
 
+class BlockGedaechtnis(unittest.TestCase):
+    """Ein laufender Block darf nicht neu verhandelt werden."""
+
+    def setUp(self) -> None:
+        self.cfg = automation.settings(
+            {"enabled": True, "mode": "cheapest_block", "cheapest_hours": 3}
+        )
+        # Heute: guenstig 12-14. Morgen: durchweg noch etwas guenstiger.
+        self.heute = price_day([0.40]*12 + [0.20, 0.20, 0.20] + [0.40]*9)
+        self.morgen = price_day([0.18]*24, day="2026-08-17")
+
+    def test_ohne_gedaechtnis_wandert_die_wahl_nach_morgen(self) -> None:
+        """Das Verhalten, das die Trockenübung aufgedeckt hat."""
+        spaet = dt.datetime(2026, 8, 16, 15, 30, tzinfo=dt.timezone.utc)
+        block = automation.cheapest_block(self.heute + self.morgen, 3, spaet, 24)
+        self.assertTrue(all(s.startswith("2026-08-17") for s in block),
+                        "ohne Gedaechtnis wird erwartungsgemaess morgen gewaehlt")
+
+    def test_laufender_block_bleibt_bestehen(self) -> None:
+        mittag = dt.datetime(2026, 8, 16, 12, 30, tzinfo=dt.timezone.utc)
+        gemerkt = {e["startsAt"] for e in self.heute[12:15]}
+        prices_ = {"current": dict(self.heute[13]), "today": self.heute, "tomorrow": self.morgen}
+        e = automation.decide(prices_, self.cfg, mittag, block=gemerkt)
+        self.assertTrue(e.desired, "der laufende Block muss weiterlaufen")
+        self.assertEqual(e.block, gemerkt, "und unveraendert bleiben")
+
+    def test_abgelaufener_block_wird_neu_geplant(self) -> None:
+        abends = dt.datetime(2026, 8, 16, 20, 30, tzinfo=dt.timezone.utc)
+        alt = {e["startsAt"] for e in self.heute[12:15]}   # 12-15 Uhr, vorbei
+        prices_ = {"current": dict(self.heute[20]), "today": self.heute, "tomorrow": self.morgen}
+        e = automation.decide(prices_, self.cfg, abends, block=alt)
+        self.assertNotEqual(e.block, alt, "ein abgelaufener Block muss ersetzt werden")
+
+    def test_block_gilt_noch(self) -> None:
+        jetzt = dt.datetime(2026, 8, 16, 13, 0, tzinfo=dt.timezone.utc)
+        laufend = {e["startsAt"] for e in self.heute[12:15]}
+        vorbei = {e["startsAt"] for e in self.heute[5:8]}
+        self.assertTrue(automation.block_gilt_noch(laufend, jetzt))
+        self.assertFalse(automation.block_gilt_noch(vorbei, jetzt))
+        self.assertFalse(automation.block_gilt_noch(set(), jetzt))
+
+    def test_zeitfenster_begrenzt_die_suche(self) -> None:
+        frueh = dt.datetime(2026, 8, 16, 0, 30, tzinfo=dt.timezone.utc)
+        eng = automation.cheapest_block(self.heute + self.morgen, 3, frueh, 12)
+        self.assertTrue(all(s.startswith("2026-08-16") for s in eng),
+                        "mit engem Fenster darf morgen nicht gewaehlt werden")
+
+
 if __name__ == "__main__":
     unittest.main()

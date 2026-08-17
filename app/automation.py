@@ -18,6 +18,7 @@ DEFAULTS: dict[str, Any] = {
     "mode": "threshold",          # threshold | cheapest | level
     "threshold_ct": 25.0,         # ct/kWh, brutto (Endpreis, nicht Boersenpreis)
     "cheapest_hours": 6,          # Anzahl guenstigster Stunden pro Tag
+    "block_window_hours": 24,     # Zeitfenster, in dem der Block liegen muss
     "levels": ["VERY_CHEAP", "CHEAP"],
     "min_off_minutes": 0,         # Schutz gegen Flattern
     "min_on_minutes": 0,          # Mindestlaufzeit fuer Verbraucher, die durchlaufen sollen
@@ -39,6 +40,7 @@ def settings(raw: dict[str, Any] | None) -> dict[str, Any]:
     merged.update(raw or {})
     merged["threshold_ct"] = float(merged.get("threshold_ct") or 0)
     merged["cheapest_hours"] = max(0, min(24, int(merged.get("cheapest_hours") or 0)))
+    merged["block_window_hours"] = max(1, min(48, int(merged.get("block_window_hours") or 24)))
     merged["min_off_minutes"] = max(0, min(720, int(merged.get("min_off_minutes") or 0)))
     merged["min_on_minutes"] = max(0, min(1440, int(merged.get("min_on_minutes") or 0)))
     merged["max_off_hours"] = max(0, min(72, int(merged.get("max_off_hours") or 0)))
@@ -51,7 +53,10 @@ def settings(raw: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def cheapest_block(
-    entries: list[dict[str, Any]], hours: int, now: dt.datetime
+    entries: list[dict[str, Any]],
+    hours: int,
+    now: dt.datetime,
+    window_hours: int = 24,
 ) -> set[str]:
     """startsAt-Werte des guenstigsten zusammenhaengenden Blocks.
 
@@ -64,6 +69,13 @@ def cheapest_block(
     Bloecke, die bereits komplett vorbei sind, scheiden aus. Loecken in der
     Preisreihe werden uebersprungen, damit kein Block ueber fehlende Stunden
     hinweg gebildet wird.
+
+    `window_hours` begrenzt, wie weit voraus gesucht wird — und das ist keine
+    Feinheit, sondern noetig: Ohne Grenze waehlt die Regel den guenstigsten
+    Block der gesamten bekannten Reihe. Sind die Preise von morgen auch nur
+    geringfuegig niedriger, wird heute gar nicht geschaltet und die Sache immer
+    weiter aufgeschoben. Mit 24 Stunden heisst die Regel: "irgendwann am Stueck
+    innerhalb des naechsten Tages, moeglichst guenstig".
     """
     if hours <= 0:
         return set()
@@ -93,6 +105,8 @@ def cheapest_block(
 
         if zeiten[-1] + dt.timedelta(hours=1) <= now:
             continue  # Block liegt vollstaendig in der Vergangenheit
+        if zeiten[0] > now + dt.timedelta(hours=window_hours):
+            continue  # Block liegt jenseits des Zeitfensters
 
         summe = sum(e["total"] for e in fenster)
         if bestes is None or summe < bestes[0]:
@@ -106,9 +120,21 @@ class Decision:
         self.desired = desired          # None = keine Entscheidung moeglich
         self.reason = reason
         self.price_ct = price_ct
+        self.block: set[str] = set()    # nur beim Blockmodus belegt
 
     def as_dict(self) -> dict[str, Any]:
         return {"desired": self.desired, "reason": self.reason, "price_ct": self.price_ct}
+
+
+def block_gilt_noch(block: set[str], now: dt.datetime) -> bool:
+    """Laeuft ein einmal gewaehlter Block noch?"""
+    if not block:
+        return False
+    try:
+        ende = max(parse_ts(s) for s in block) + dt.timedelta(hours=1)
+    except ValueError:
+        return False
+    return ende > now
 
 
 def decide(
@@ -117,6 +143,7 @@ def decide(
     now: dt.datetime,
     *,
     off_since: float | None = None,
+    block: set[str] | None = None,
 ) -> Decision:
     """Soll-Zustand des Schalters bestimmen."""
     if not cfg.get("enabled"):
@@ -178,20 +205,29 @@ def decide(
     if mode == "cheapest_block":
         count = cfg["cheapest_hours"]
         reihe = list(prices.get("today") or []) + list(prices.get("tomorrow") or [])
-        block = cheapest_block(reihe, count, now)
+
+        # Einen laufenden Block nicht neu verhandeln. Ohne dieses Gedaechtnis
+        # waehlt die Regel bei jedem Durchlauf neu — und schiebt die Einschaltung
+        # immer weiter auf, solange der naechste Tag noch etwas guenstiger ist.
+        if not block_gilt_noch(block or set(), now):
+            block = cheapest_block(reihe, count, now, cfg["block_window_hours"])
+
         starts_at = current.get("startsAt")
-        on = starts_at in block
+        on = starts_at in (block or set())
         if block:
-            beginn = min(block)
-            hinweis = f"Block ab {parse_ts(beginn).strftime('%H:%M')}, {count} h"
+            beginn = parse_ts(min(block))
+            ende = parse_ts(max(block)) + dt.timedelta(hours=1)
+            hinweis = f"Block {beginn:%d.%m. %H:%M}–{ende:%H:%M}"
         else:
             hinweis = "kein Block bestimmbar"
-        return Decision(
+        entscheidung = Decision(
             on,
             f"Diese Stunde liegt {'im' if on else 'nicht im'} guenstigsten "
             f"{count}-Stunden-Block ({hinweis})",
             price_ct,
         )
+        entscheidung.block = block or set()
+        return entscheidung
 
     if mode == "level":
         level = current.get("level")
@@ -226,7 +262,7 @@ def schedule_preview(
         cheap = cheapest_hours(prices.get("today") or [], cfg["cheapest_hours"])
         cheap |= cheapest_hours(prices.get("tomorrow") or [], cfg["cheapest_hours"])
     elif cfg["mode"] == "cheapest_block":
-        cheap = cheapest_block(entries, cfg["cheapest_hours"], now)
+        cheap = cheapest_block(entries, cfg["cheapest_hours"], now, cfg["block_window_hours"])
 
     out: list[dict[str, Any]] = []
     for entry in entries:

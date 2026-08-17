@@ -10,31 +10,23 @@ Rechne mit etwa 30 Minuten, davon 20 für die Tuya-Anmeldung.
 
 ## Das Wichtigste zuerst
 
-> ### Du legst gleich ein **zweites Tuya-Konto** an. Das ist normal und richtig.
+> ### Du brauchst **kein** Tuya-Entwicklerkonto.
 >
-> `iot.tuya.com` (Entwicklerplattform) und die **Smart-Life-App** sind zwei
-> getrennte Systeme mit getrennten Benutzerdatenbanken. Dein App-Login
-> funktioniert auf `iot.tuya.com` **nicht** — nicht weil etwas kaputt ist,
-> sondern weil es das Konto dort schlicht nicht gibt. Du registrierst dich dort
-> also neu.
+> Ältere Anleitungen — auch frühere Fassungen dieser hier — schicken dich auf
+> `iot.tuya.com`, ein Projekt anlegen, APIs auswählen, Zeichenketten kopieren.
+> Zwanzig Minuten, und das Ganze läuft nach einem Monat ab.
 >
-> ### Und jetzt der Satz, auf den es ankommt:
+> **Das ist nicht mehr nötig.** Die App meldet sich per **QR-Code** mit dem
+> Konto an, das du ohnehin in der Smart-Life-App hast. Zwei Minuten, keine
+> Frist, nichts, was abläuft.
 >
-> **Du musst deine Geräte deswegen NICHT neu einrichten.**
->
-> Kein Zurücksetzen, kein neues Anlernen, kein Umverkabeln, nichts am
-> Sicherungskasten. Das Entwicklerkonto ist nur ein *Schlüssel*, damit Programme
-> mit der Tuya-Cloud reden dürfen. Die Verbindung zu deinen vorhandenen Geräten
-> entsteht später durch **einen QR-Code**, den du mit deiner gewohnten
-> Smart-Life-App scannst (Teil 1, Schritt 5). Danach sieht das Entwicklerkonto
-> deine Geräte — sie bleiben dabei genau da, wo sie sind.
->
-> Deine App, deine Geräte, dein WLAN bleiben unangetastet.
+> Der alte Weg steht weiter zur Verfügung, falls du ihn brauchst — er ist in
+> Teil 1 unter „Weg C" beschrieben. Nur dort gilt dann auch der Hinweis, dass
+> `iot.tuya.com` ein eigenes Konto ist, getrennt von der App.
 
-> **Zu den Klickpfaden:** Tuya und TrueNAS ändern die Bezeichnungen ihrer Menüs
-> regelmäßig. Wenn ein Punkt hier anders heißt als auf deinem Bildschirm, ist das
-> kein Fehler in der Anleitung, sondern eine neuere Version. Deshalb steht
-> unten meist dabei, *wonach* du suchst, nicht nur wo es letztes Jahr stand.
+> **Und in keinem Fall gilt:** Du musst deine Geräte neu einrichten. Kein
+> Zurücksetzen, kein Neuanlernen, nichts am Sicherungskasten. Deine App, deine
+> Geräte, dein WLAN bleiben unangetastet.
 
 ---
 
@@ -49,83 +41,80 @@ Rechne mit etwa 30 Minuten, davon 20 für die Tuya-Anmeldung.
 
 ---
 
-## Teil 1 — Tuya-Zugang einrichten
+## Teil 1 — Gerätezugang
 
-Tuya lässt fremde Programme **nicht** mit E-Mail und Passwort der App arbeiten.
-Stattdessen brauchst du ein kostenloses Entwickler-Projekt. Das klingt schlimmer,
-als es ist — du klickst dich einmal durch und kopierst dann zwei Zeichenketten.
+Die App kennt drei Wege zu deinem Zähler und nimmt automatisch den besten, der
+funktioniert. Du richtest **einen** ein — am besten den ersten.
 
-> **An der echten Oberfläche nachvollzogen** (August 2026). Achtung:
-> **iot.tuya.com leitet inzwischen auf platform.tuya.com um** — beides führt zum Ziel.
+| | Weg | Aufwand | Läuft ab? | Tempo |
+|---|-----|---------|-----------|-------|
+| **A** | **QR-Anmeldung** | 2 Minuten | **nein** | ~1 s |
+| **B** | Lokal im eigenen Netz | ergibt sich aus A | **nein** | ~30 ms |
+| **C** | Entwicklerprojekt | 20 Minuten | **ja, 1 Monat** | ~1 s |
 
-1. Auf **iot.tuya.com** (bzw. **platform.tuya.com**) ein Konto anlegen — das ist
-   nicht dein App-Konto, siehe Kasten oben.
+### Weg A — QR-Anmeldung (empfohlen)
 
-2. **Ein Cloud-Projekt anlegen.**
-   In der schmalen Symbolleiste links auf **Cloud**, dann
-   **Cloud Project → Project Management**. Rechts oben der Knopf
-   **Create Cloud Project**.
-   - Name: frei wählbar, z. B. `smartmeter`
-   - Industry: *Smart Home*
-   - **Data Center: Central Europe Data Center** ← für Deutschland
+Das machst du **nach** der Installation, in der Weboberfläche der App unter
+**Zugang**. Hier nur, damit du weißt, was kommt:
 
-3. **Die nötigen Dienste.** Beim Anlegen wird danach gefragt; im fertigen Projekt
-   stehen sie im Reiter **Service API**. Dabei sein müssen mindestens
-   `IoT Core`, `Authorization Token Management` und `Smart Home Basic Service`.
-   (Ein frisches Projekt hat meist fünf Dienste — die übrigen schaden nicht.)
+1. In der **Smart-Life-App**: *Ich* → Zahnrad oben rechts → *Konto und
+   Sicherheit*. Dort steht ein **Benutzercode** (*User Code*) — eine kurze
+   Zeichenfolge, kein Passwort.
+2. Den Code in der App-Oberfläche eintragen, **QR-Code erzeugen** drücken.
+3. Den QR-Code mit der Smart-Life-App scannen (*oben rechts das Scan-Symbol*)
+   und in der App bestätigen.
+4. Zurück im Browser auf **Fertig, geprüft**.
 
-4. **Die beiden Zeichenketten abholen.**
-   Reiter **Overview**, Block **Authorization Key**:
-   - **Access ID/Client ID** — 20 Zeichen, im Klartext
-   - **Access Secret/Client Secret** — als `••••••` verborgen
+Das war alles. Kein Konto anlegen, keine APIs auswählen, keine Zeichenketten
+kopieren, kein Ablaufdatum.
 
-   Rechts neben dem Secret ist ein **Augen-Symbol**. Erst daraufklicken, dann
-   kopieren — sonst erwischt du nur die Punkte.
+### Weg B — lokal, ganz ohne Cloud
 
-5. **Der entscheidende Schritt — hier werden die beiden Konten verbunden:**
+Der schnellste und unabhängigste Weg: Die App spricht direkt mit dem Gerät im
+eigenen Netz. Kein Internet nötig, kein Abfragelimit, rund 30 Millisekunden
+statt einer Sekunde — und bei diesem Zähler kommt sogar der **Zählerstand**
+dazu, den die Cloud gar nicht herausgibt.
 
-   Reiter **Devices**, Punkt **Link App Account** (daneben liegen *Link My App*,
-   *Link SaaS* und weitere — such nach „Link App Account"), dahinter
-   **Add App Account**.
+Dafür braucht es einen geräteeigenen Schlüssel, den **Weg A automatisch
+mitliefert**. Du trägst in der Oberfläche nur noch die Adresse des Zählers im
+Netz ein (steht im Router) und drückst auf Verbinden.
 
-   Es erscheint ein **QR-Code**, den du mit deiner gewohnten **Smart-Life-App**
-   scannst: *Ich → oben rechts das Scan-Symbol*.
+> **Wann das nicht geht:** Wenn Zähler und Server in getrennten Netzen hängen
+> und die Trennung nicht durchlässig ist — etwa Zähler im FritzBox-Gastnetz,
+> Server im Heimnetz. Dann bleibt es bei Weg A, der funktioniert immer.
 
-   **An den Geräten selbst ändert sich dabei nichts** — sie werden nicht neu
-   angelernt, nicht zurückgesetzt, nicht verschoben.
+### Weg C — Entwicklerprojekt (nur wenn nötig)
 
-> **Wenn die Menüs anders heißen:** Tuya baut seine Oberfläche regelmäßig um, und
-> zwar schneller, als Anleitungen nachgezogen werden. Halte dich an die
-> Schlüsselwörter (*Cloud*, *Create*, *Authorization Key*, *Link*), nicht an den
-> genauen Wortlaut. Tuyas eigene, stets aktuelle Beschreibung des
-> Verknüpfungsschritts steht hier:
-> <https://developer.tuya.com/en/docs/iot/link-devices> — auf Englisch, dafür
-> immer passend zur aktuellen Oberfläche, meist mit Bildern.
+Der ursprüngliche Weg. Du brauchst ihn nur, wenn die QR-Anmeldung bei dir nicht
+funktioniert.
 
-### Zum Testzeitraum — und wo das Ablaufdatum steht
+> **Achtung, zwei Konten:** `iot.tuya.com` (inzwischen **platform.tuya.com**)
+> und die Smart-Life-App sind getrennte Systeme. Dein App-Login funktioniert
+> dort **nicht** — du registrierst dich neu. Deine Geräte musst du deswegen
+> trotzdem nicht neu einrichten.
 
-Ein neues Projekt hat **genau einen Monat**. Nachgemessen an einem am 16.08.
-angelegten Projekt: *Effective Date* 16.08., *Expiration Date* 16.09.
+1. Auf **platform.tuya.com** ein Konto anlegen.
+2. Links **Cloud** → **Cloud Project** → **Project Management** → rechts oben
+   **Create Cloud Project**. Data Center: **Central Europe Data Center**.
+3. Dienste: `IoT Core`, `Authorization Token Management`, `Smart Home Basic
+   Service` (stehen später im Reiter **Service API**).
+4. Reiter **Overview**, Block **Authorization Key**: **Access ID/Client ID**
+   (20 Zeichen) und **Access Secret/Client Secret** (32 Zeichen). Das Secret ist
+   als `••••••` verborgen — **erst auf das Augen-Symbol klicken**, dann kopieren.
+5. Reiter **Devices** → **Link App Account** → **Add App Account** → QR-Code mit
+   der Smart-Life-App scannen. Erst danach sieht das Projekt deine Geräte.
 
-Die Stelle ist gut versteckt:
+**Zum Ablaufdatum:** Ein neues Projekt hat genau einen Monat. Wo es steht, ist
+gut versteckt: *Service API* → Zeile **IoT Core** → **View Details** → Tabelle
+mit *Expiration Date*, darunter der Knopf **Extend Trial Period**. Einen Reiter
+namens „Service" gibt es nicht.
 
-```
-Projekt öffnen → Reiter Service API → Zeile "IoT Core" → View Details
-```
+Die Verlängerung ist ein **Antragsformular** (Dauer, Entwicklertyp, Gerätezahl,
+Projektbeschreibung, Kontaktperson, Kontaktdaten) — kein Klick. Tuya antwortet
+meist innerhalb eines Werktages, berichtet werden bis zu sechs Monate.
 
-Dort steht eine Tabelle mit *Resource Pack Name*, *Effective Date* und
-**Expiration Date**, darunter der Knopf **Extend Trial Period**.
-
-> Einen Reiter namens „Service" gibt es **nicht**. Die Reiter heißen *Overview*,
-> *Authorization*, *Service API*, *Devices*, *Message Service* und
-> *Smart Industry Applications*.
-
-Trag das *Expiration Date* in der App unter **Einstellungen → Tuya-Testzeitraum**
-ein — dann warnt sie exakt zehn Tage vorher, statt zu schätzen.
-
-Die Verlängerung ist ein **Antrag**, kein Klick: Tuya prüft ihn und antwortet
-laut eigener Hilfeseite innerhalb eines Werktages; verlängert wird um bis zu
-sechs Monate. Also rechtzeitig stellen, nicht am letzten Tag.
+Trag das Ablaufdatum in der App unter *Einstellungen* ein, dann warnt sie dich
+zehn Tage vorher.
 
 ---
 
