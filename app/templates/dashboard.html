@@ -9,40 +9,12 @@
   <h2>Alle Geräte</h2>
   <div class="scroll">
     <table style="width:100%; border-collapse:collapse; font-size:14px">
-      <tbody>
-        {% for g in uebersicht %}
-        <tr style="border-top:1px solid var(--line)">
-          <td style="padding:9px 12px 9px 0">
-            <a href="/?device={{ g.device_id }}"
-               style="{% if g.device_id == state.device_id %}font-weight:600{% endif %}">
-              {{ g.device_name or g.device_id[:8] }}</a>
-          </td>
-          <td style="padding:9px 12px 9px 0; white-space:nowrap">
-            {% if g.online %}<span style="color:var(--ok)">online</span>
-            {% elif g.online is none %}<span class="muted">—</span>
-            {% else %}<span style="color:var(--err)">offline</span>{% endif %}
-          </td>
-          <td style="padding:9px 12px 9px 0; white-space:nowrap">
-            {% for sw in g.switches if sw.present %}
-              <button type="button" class="secondary"
-                      style="padding:4px 12px; font-size:13px"
-                      onclick="schalteGeraet('{{ g.device_id }}', '{{ sw.code }}', {{ 'false' if sw.value else 'true' }}, this)">
-                {{ 'ausschalten' if sw.value else 'einschalten' }}
-              </button>
-              <span class="pill" style="margin-left:6px;
-                    color:{{ 'var(--ok)' if sw.value else 'var(--muted)' }}">
-                {{ 'ein' if sw.value else 'aus' }}</span>
-            {% endfor %}
-          </td>
-          <td style="padding:9px 12px 9px 0; font-variant-numeric:tabular-nums; white-space:nowrap">
-            {% for m in g.metrics if m.code == 'cur_power' %}{{ m.value }} {{ m.unit }}{% endfor %}
-          </td>
-          <td style="padding:9px 0" class="muted">
-            {% if g.automation.enabled %}Automatik · {{ g.automation.mode_label }}
-            {% else %}von Hand{% endif %}
-          </td>
-        </tr>
-        {% endfor %}
+      {# Wird vom selben Abruf gefuellt wie die Karten darunter. Zwei Quellen
+         fuer denselben Schaltzustand liefen sonst auseinander: Die Tabelle kam
+         vom Server, die Karten aus dem laufenden Abruf -- nach dem Schalten
+         zeigten sie unterschiedliche Zustaende, bis die Seite neu geladen wurde. #}
+      <tbody id="geraete-zeilen">
+        <tr><td class="muted" style="padding:9px 0">wird geladen …</td></tr>
       </tbody>
     </table>
   </div>
@@ -102,6 +74,8 @@ const fmt = (v) => (typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFr
 const DEVICE_ID = {{ (state.device_id or '') | tojson }};
 const GERAET = DEVICE_ID ? '?device=' + encodeURIComponent(DEVICE_ID) : '';
 
+const zeilen = document.getElementById('geraete-zeilen');
+
 async function schalteGeraet(device, code, value, knopf) {
   knopf.disabled = true;
   try {
@@ -112,15 +86,43 @@ async function schalteGeraet(device, code, value, knopf) {
     });
     if (!resp.ok) {
       const fehler = await resp.json().catch(() => ({}));
-      alert(fehler.detail || 'Schalten fehlgeschlagen');
-      knopf.disabled = false;
-      return;
+      document.getElementById('alerts').innerHTML =
+        `<div class="msg err">Schalten fehlgeschlagen: ${fehler.detail || 'Unbekannter Fehler'}</div>`;
     }
-    location.reload();          // die Tabelle kommt vom Server
-  } catch (e) {
-    alert('Keine Verbindung zum Server');
-    knopf.disabled = false;
+  } finally {
+    await load();
   }
+}
+
+function zeigeGeraete(liste) {
+  if (!zeilen) return;
+  zeilen.innerHTML = liste.map(g => {
+    const name = g.device_name || g.device_id.slice(0, 8);
+    const zustand = g.online === true
+      ? '<span style="color:var(--ok)">online</span>'
+      : g.online === false
+        ? '<span style="color:var(--err)">offline</span>'
+        : '<span class="muted">—</span>';
+    const schalter = (g.switches || []).filter(s => s.present).map(s => `
+      <button type="button" class="secondary" style="padding:4px 12px; font-size:13px"
+              onclick="schalteGeraet('${g.device_id}', '${s.code}', ${!s.value}, this)">
+        ${s.value ? 'ausschalten' : 'einschalten'}
+      </button>
+      <span class="pill" style="margin-left:6px; color:${s.value ? 'var(--ok)' : 'var(--muted)'}">
+        ${s.value ? 'ein' : 'aus'}</span>`).join('') || '<span class="muted">–</span>';
+    const leistung = (g.metrics || []).filter(m => m.code === 'cur_power')
+      .map(m => `${fmt(m.value)} ${m.unit}`).join('') || '';
+    const regel = g.automation && g.automation.enabled
+      ? `Automatik · ${g.automation.mode_label}` : 'von Hand';
+    const dick = g.device_id === DEVICE_ID ? 'font-weight:600' : '';
+    return `<tr style="border-top:1px solid var(--line)">
+      <td style="padding:9px 12px 9px 0"><a href="/?device=${g.device_id}" style="${dick}">${name}</a></td>
+      <td style="padding:9px 12px 9px 0; white-space:nowrap">${zustand}</td>
+      <td style="padding:9px 12px 9px 0; white-space:nowrap">${schalter}</td>
+      <td style="padding:9px 12px 9px 0; font-variant-numeric:tabular-nums; white-space:nowrap">${leistung}</td>
+      <td style="padding:9px 0" class="muted">${regel}</td>
+    </tr>`;
+  }).join('');
 }
 
 async function load() {
@@ -190,13 +192,22 @@ async function load() {
   // Schalter
   const auto = s.automation || {};
   const offline = s.online === false;
+  // Zustand und Aktion getrennt zeigen: die Pille sagt, wie es steht, der
+  // Knopf, was passiert. Zwei gleich aussehende Knoepfe, von denen einer die
+  // Aktion und der andere den Zustand hervorhob, lasen sich als Widerspruch
+  // zur Geraeteliste weiter oben.
   document.getElementById('switches').innerHTML = (s.switches || []).length
     ? s.switches.map(sw => `
         <div class="row">
           <div>${sw.label}<div class="muted">${sw.code}</div></div>
-          <div style="display:flex; gap:8px">
-            <button ${sw.value ? 'class="secondary"' : ''} onclick="setSwitch('${sw.code}', true)"  ${sw.value || offline ? 'disabled' : ''}>Ein</button>
-            <button ${!sw.value ? 'class="secondary"' : ''} onclick="setSwitch('${sw.code}', false)" ${!sw.value || offline ? 'disabled' : ''}>Aus</button>
+          <div style="display:flex; gap:10px; align-items:center">
+            <span class="pill" style="color:${sw.value ? 'var(--ok)' : 'var(--ink-mute, var(--muted))'};
+                  border-color:${sw.value ? 'var(--ok)' : 'var(--line)'}">
+              ${sw.value ? 'ein' : 'aus'}
+            </span>
+            <button class="secondary" onclick="setSwitch('${sw.code}', ${!sw.value})" ${offline ? 'disabled' : ''}>
+              ${sw.value ? 'ausschalten' : 'einschalten'}
+            </button>
           </div>
         </div>`).join('')
     : '<span class="muted">Dieses Gerät meldet keinen schaltbaren Ausgang.</span>';
@@ -253,6 +264,13 @@ async function load() {
         <div class="bar" style="height:${Math.max(8, (u.ct / max) * 90)}px"></div>
         <div>${u.hour}</div>
       </div>`).join('');
+  }
+
+  if (zeilen) {
+    try {
+      const antwort = await fetch('/api/devices', {credentials: 'same-origin'});
+      if (antwort.ok) zeigeGeraete((await antwort.json()).devices || []);
+    } catch (e) { /* naechster Durchlauf */ }
   }
 
   const kanalName = {lokal: 'lokal', qr: 'QR-Anmeldung', cloud: 'Tuya-Cloud'}[s.kanal] || '–';
