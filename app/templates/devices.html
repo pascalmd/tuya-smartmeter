@@ -22,9 +22,11 @@
   <h2>Deine Geräte</h2>
   {% if meine %}
     <p class="muted" style="margin-top:0">
-      Jedes Gerät hat seine eigene Regel und seinen eigenen Zugang. Ein Zähler
-      kann nach dem Preis schalten, während eine Steckdose nur von Hand bedient
-      wird — sie stören sich nicht.
+      Alle Geräte folgen derselben <a href="/automation">Regel</a>; ob ein Gerät
+      ihr folgt oder nur von Hand bedient wird, stellst du dort ein.
+      <br><strong>abfragen</strong> aus heißt: Das Gerät ruht — es wird nicht
+      abgefragt und taucht in der Überwachung nicht als Störung auf. Passend für
+      eine Steckdose, die erst noch kommt oder über den Winter vom Netz ist.
     </p>
     <div class="scroll">
       <table style="width:100%; border-collapse:collapse; font-size:14px">
@@ -45,18 +47,21 @@
               <div class="muted"><code>{{ g.device_id }}</code></div>
             </td>
             <td style="padding:9px 10px 9px 0">
-              {% if g.kanal == 'lokal' %}<span style="color:var(--ok)">lokal</span>
+              {% if not g.aktiv %}<span class="muted">—</span>
+              {% elif g.kanal == 'lokal' %}<span style="color:var(--ok)">lokal</span>
               {% elif g.kanal == 'qr' %}QR-Anmeldung
               {% elif g.kanal == 'cloud' %}Entwicklerprojekt
               {% else %}<span class="muted">noch nicht erreicht</span>{% endif %}
             </td>
             <td style="padding:9px 10px 9px 0">
-              {% if g.online %}<span style="color:var(--ok)">online</span>
+              {% if not g.aktiv %}<span class="muted">ruht</span>
+              {% elif g.online %}<span style="color:var(--ok)">online</span>
               {% elif g.online is none %}<span class="muted">—</span>
               {% else %}<span style="color:var(--err)">offline</span>{% endif %}
             </td>
             <td style="padding:9px 10px 9px 0">
-              {% if g.automation.enabled %}{{ g.automation.mode_label }}
+              {% if not g.aktiv %}<span class="muted">—</span>
+              {% elif g.automation.enabled %}{{ g.automation.mode_label }}
               {% else %}<span class="muted">aus (nur von Hand)</span>{% endif %}
             </td>
             <td style="padding:9px 0; white-space:nowrap">
@@ -77,6 +82,16 @@
                          data-bwignore="1" data-lpignore="true" data-1p-ignore>
                   <button class="secondary" type="submit"
                           style="padding:5px 10px; font-size:13px">Umbenennen</button>
+                </form>
+
+                <form method="post" action="/devices/aktiv"
+                      style="display:flex; gap:7px; align-items:center">
+                  <input type="hidden" name="device_id" value="{{ g.device_id }}">
+                  <label style="display:flex; gap:7px; align-items:center; margin:0; font-size:13px">
+                    <input type="checkbox" name="aktiv" style="width:auto"
+                           {% if g.aktiv %}checked{% endif %} onchange="this.form.submit()">
+                    abfragen
+                  </label>
                 </form>
 
                 <form method="post" action="/devices/aufzeichnen"

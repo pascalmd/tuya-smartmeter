@@ -242,8 +242,9 @@ def zustand(device_id: str | None = None) -> DeviceState:
     return vorhanden
 
 
-def alle_zustaende() -> list[DeviceState]:
-    return [zustand(e["id"]) for e in geraete.liste()]
+def alle_zustaende(nur_aktive: bool = False) -> list[DeviceState]:
+    quelle = geraete.aktive() if nur_aktive else geraete.liste()
+    return [zustand(e["id"]) for e in quelle]
 
 
 def vergessen(device_id: str) -> None:
@@ -791,9 +792,9 @@ async def poller() -> None:
         interval = int(config.get("refresh_seconds", 180) or 180)
         interval = max(MIN_INTERVAL, min(MAX_INTERVAL, interval))
 
-        if config.setup_done and geraete.liste():
+        if config.setup_done and geraete.aktive():
             await poll_prices()
-            for st in alle_zustaende():
+            for st in alle_zustaende(nur_aktive=True):
                 await durchlauf(st, interval)
 
         now = time.time()
@@ -1154,10 +1155,16 @@ async def devices_page(request: Request, saved: str = "", meldung: str = ""):
             error = str(exc)
 
     uebernommen = {e["id"] for e in geraete.liste()}
+    meine = []
+    for eintrag in geraete.liste():
+        st = zustand(eintrag["id"])
+        meine.append({**st.as_dict(),
+                      "aktiv": eintrag.get("aktiv", True),
+                      "aufzeichnen": eintrag.get("aufzeichnen", True)})
     return page(
         request, "devices.html",
         devices=devices, error=error, quelle=quelle,
-        meine=[st.as_dict() for st in alle_zustaende()],
+        meine=meine,
         uebernommen=uebernommen,
         saved=saved, meldung=meldung,
     )
@@ -1210,6 +1217,20 @@ async def devices_rename(request: Request, device_id: str = Form(...), name: str
     st = _states.get(device_id.strip())
     if st:
         st.name = name.strip()
+    return RedirectResponse("/devices?saved=1", 303)
+
+
+@app.post("/devices/aktiv")
+async def devices_active(request: Request, device_id: str = Form(...), aktiv: str = Form("")):
+    """Ein Geraet ruhen lassen oder wieder aufwecken."""
+    require_login(request)
+    gid = device_id.strip()
+    geraete.aktualisieren(gid, aktiv=bool(aktiv))
+    if not aktiv:
+        vergessen(gid)
+        store.log_event("info", "Geraet ruht — wird nicht mehr abgefragt", device=gid)
+    else:
+        store.log_event("info", "Geraet wieder aktiv", device=gid)
     return RedirectResponse("/devices?saved=1", 303)
 
 
@@ -1802,7 +1823,9 @@ async def healthz():
             "version": VERSION, "build_date": BUILD_DATE,
         })
     interval = int(config.get("refresh_seconds", 180) or 180)
-    zustaende = alle_zustaende() or [zustand()]
+    # Ruhende Geraete bleiben aussen vor: Sie werden nicht abgefragt, also
+    # waere jede Aussage ueber ihren Zustand erfunden.
+    zustaende = alle_zustaende(nur_aktive=True) or [zustand()]
     erstes = zustaende[0]
     age = time.time() - erstes.ts if erstes.ts else None
 

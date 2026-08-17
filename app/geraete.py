@@ -38,6 +38,7 @@ VORLAGE: dict[str, Any] = {
     },
     # Die Schaltregel ist gemeinsam (siehe unten). Je Geraet bleibt nur, was
     # wirklich am Geraet haengt: ob es mitmacht und welcher Ausgang gemeint ist.
+    "aktiv": True,            # False = ruht: kein Abruf, keine Meldung
     "automatik_aktiv": True,
     "switch_code": "",        # leer = beim ersten Abruf selbst erkennen
     "override_until": 0,
@@ -112,6 +113,17 @@ def holen(device_id: str) -> dict[str, Any] | None:
         if eintrag["id"] == device_id:
             return eintrag
     return None
+
+
+def aktive() -> list[dict[str, Any]]:
+    """Nur die Geraete, die tatsaechlich abgefragt werden sollen.
+
+    Ein ruhendes Geraet bleibt im Bestand -- fuer eine Steckdose, die erst
+    noch kommt, oder eine, die ueber den Winter vom Netz ist. Es wird nicht
+    abgefragt und faerbt die Ueberwachung nicht rot; ohne diese Moeglichkeit
+    bliebe nur Loeschen, und damit waeren Name, Regel und Verlauf weg.
+    """
+    return [e for e in liste() if e.get("aktiv", True)]
 
 
 def primaer() -> dict[str, Any] | None:

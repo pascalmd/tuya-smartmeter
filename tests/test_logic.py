@@ -470,6 +470,23 @@ class Geraetebestand(unittest.TestCase):
         self.assertEqual([e["id"] for e in self.geraete.liste()], ["b"])
         self.assertFalse(self.geraete.entfernen("gibtsnicht"))
 
+    def test_ruhendes_geraet_wird_nicht_abgefragt(self) -> None:
+        """Im Bestand behalten, aber still — ohne Loeschen und ohne Fehlalarm."""
+        self.geraete.hinzufuegen("laeuft", "Zaehler")
+        self.geraete.hinzufuegen("kommt-noch", "Steckdose")
+        self.geraete.aktualisieren("kommt-noch", aktiv=False)
+
+        self.assertEqual([e["id"] for e in self.geraete.aktive()], ["laeuft"])
+        self.assertEqual(len(self.geraete.liste()), 2)      # bleibt im Bestand
+        self.assertEqual(self.geraete.holen("kommt-noch")["name"], "Steckdose")
+
+    def test_ruhendes_geraet_wieder_aufwecken(self) -> None:
+        self.geraete.hinzufuegen("a", "A")
+        self.geraete.aktualisieren("a", aktiv=False)
+        self.assertEqual(self.geraete.aktive(), [])
+        self.geraete.aktualisieren("a", aktiv=True)
+        self.assertEqual([e["id"] for e in self.geraete.aktive()], ["a"])
+
     def test_doppeltes_hinzufuegen_benennt_nur_um(self) -> None:
         self.geraete.hinzufuegen("a", "Alter Name")
         self.geraete.hinzufuegen("a", "Neuer Name")
