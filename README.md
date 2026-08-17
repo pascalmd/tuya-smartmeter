@@ -34,7 +34,7 @@ docker run -d --name tuya-smartmeter -p 8099:8099 \
 Danach `http://<server>:8099` öffnen — der Rest läuft im Browser.
 
 Das Image gibt es für **x86_64 und ARM64**; auf einem Raspberry Pi wird
-automatisch die passende Fassung geladen. Ein 64-bit-Betriebssystem ist nötig
+automatisch die passende Version geladen. Ein 64-bit-Betriebssystem ist nötig
 (Raspberry Pi OS Lite 64-bit), ein Pi 3 oder neuer.
 
 ## Was man braucht
@@ -177,7 +177,7 @@ Der Umweg über ein Skript hat einen Grund: Während der Entwicklung wird das Im
 gern nur lokal gebaut, um es schnell auszuprobieren — die Registry bleibt dabei
 stehen. Genau das ist einmal passiert, mit acht Commits Rückstand, darunter ein
 Fehler, der die Automatik lahmlegte. Wer neu installiert hätte, hätte genau diese
-Fassung bekommen.
+Version bekommen.
 
 Das Paket steht auf **public**, lässt sich also ohne Konto ziehen. Die
 Sichtbarkeit ist nur über die Web-Oberfläche umstellbar, dafür gibt es keinen

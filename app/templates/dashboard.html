@@ -186,7 +186,7 @@ async function load() {
   document.getElementById('status').innerHTML =
     `Gerät: ${s.device_name || '–'} (${s.online === false ? 'nicht erreichbar' : s.online ? 'verbunden' : 'unbekannt'}) · Zugang: <a href="/zugang">${kanalName}</a> · Abfragen: ${s.polls} (${s.failures} Fehler) ·
      Intervall: ${s.refresh_seconds} s · Dienst läuft seit ${Math.round(s.uptime_seconds / 60)} min` +
-    (s.version ? ` · Fassung ${s.version} vom ${s.build_date}` : '');
+    (s.version ? ` · Version ${s.version} vom ${s.build_date}` : '');
 }
 
 async function setSwitch(code, value) {
