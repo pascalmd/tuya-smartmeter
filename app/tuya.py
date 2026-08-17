@@ -253,17 +253,20 @@ def decode_phase(value: str) -> dict[str, float] | None:
 SCHALT_PRAEFIXE = ("switch", "socket", "outlet")
 SCHALT_AUSNAHMEN = ("switch_overcharge", "switch_backlight", "switch_led")
 
-# Was die Spezifikation sonst mitliefert: Einheit und Nachkommastellen der
-# gaengigen Messgroessen. Tuya haelt sich hier praktisch ueberall dran.
+# Was die Spezifikation sonst mitliefert: Einheit und Nachkommastellen. Nur
+# aufgenommen, was sich am Wert selbst pruefen laesst -- 2310 kann nur 231,0 V
+# sein, 19800 mA nur 19,8 A. Bei einem Netz mit 230 V gibt es dazu keine
+# zweite Lesart.
+#
+# Bewusst NICHT drin: die Energiezaehler (total_ele und Verwandte). Ob ein
+# Zaehlerstand von 18 nun 0,18 / 1,8 / 18 kWh bedeutet, entscheidet das Modell,
+# und aus dem Wert allein ist es nicht zu erkennen. Eine geratene Kommastelle
+# waere hier schlimmer als der Rohwert: Sie sieht aus wie eine Messung.
+# Steht die Spezifikation zur Verfuegung, kommt die Skalierung ohnehin von dort.
 STANDARD_EINHEITEN: dict[str, tuple[str, int]] = {
     "cur_voltage": ("V", 1),
     "cur_current": ("mA", 0),
     "cur_power": ("W", 1),
-    "add_ele": ("kWh", 3),
-    "total_ele": ("kWh", 2),
-    "forward_energy_total": ("kWh", 2),
-    "reverse_energy_total": ("kWh", 2),
-    "power_factor": ("", 0),
     "temp_current": ("°C", 0),
 }
 

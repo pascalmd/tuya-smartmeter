@@ -287,6 +287,24 @@ class OhneSpezifikation(unittest.TestCase):
     def test_schalter_steht_nicht_doppelt_in_den_messwerten(self) -> None:
         self.assertNotIn("switch_1", [m["code"] for m in self.view["metrics"]])
 
+    def test_zaehlerstand_wird_nicht_geraten(self) -> None:
+        """18 kann 0,18 / 1,8 / 18 kWh sein — ohne Spezifikation bleibt es roh.
+
+        Eine geratene Kommastelle sieht aus wie eine Messung und ist keine.
+        """
+        view = build_view({}, [{"code": "total_ele", "value": 18}])
+        wert = next(m for m in view["metrics"] if m["code"] == "total_ele")
+        self.assertEqual(wert["value"], 18)
+        self.assertEqual(wert["unit"], "")
+
+    def test_mit_spezifikation_gilt_deren_skalierung(self) -> None:
+        spec = {"status": [{"code": "total_ele", "values": '{"unit":"kWh","scale":2}'}],
+                "functions": []}
+        view = build_view(spec, [{"code": "total_ele", "value": 18}])
+        wert = next(m for m in view["metrics"] if m["code"] == "total_ele")
+        self.assertEqual(wert["value"], 0.18)
+        self.assertEqual(wert["unit"], "kWh")
+
 
 class Protokollversionen(unittest.TestCase):
     """Lokaler Zugang: 3.3 bis 3.5 muessen alle funktionieren.
