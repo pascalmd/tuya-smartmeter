@@ -61,13 +61,12 @@
               {% else %}<span style="color:var(--err)">offline</span>{% endif %}
             </td>
             <td style="padding:9px 10px 9px 0">
-              {% if not g.aktiv %}
-                <span class="muted">—</span>
-              {% else %}
-                <form method="post" action="/devices/automatik" style="margin:0">
-                  <input type="hidden" name="device_id" value="{{ g.device_id }}">
-                  <label style="display:flex; gap:8px; align-items:center; margin:0; font-size:13px">
-                    <input type="checkbox" name="mitmachen" style="width:auto"
+              {# Auch bei einem ruhenden Geraet einstellbar: Man will vorher
+                 festlegen koennen, wie es sich verhaelt, wenn es ans Netz geht. #}
+              <form method="post" action="/devices/automatik" style="margin:0">
+                <input type="hidden" name="device_id" value="{{ g.device_id }}">
+                <label style="display:flex; gap:8px; align-items:center; margin:0; font-size:13px">
+                  <input type="checkbox" name="mitmachen" style="width:auto"
                            {% if g.automatik_aktiv %}checked{% endif %}
                            onchange="this.form.submit()">
                     {% if g.automatik_aktiv %}
@@ -77,7 +76,6 @@
                     {% endif %}
                   </label>
                 </form>
-              {% endif %}
             </td>
             <td style="padding:9px 0; white-space:nowrap">
               <a class="btn secondary" href="/zugang?device={{ g.device_id }}"

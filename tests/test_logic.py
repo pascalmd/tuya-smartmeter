@@ -451,6 +451,83 @@ class Testzeitraum(unittest.TestCase):
         self.assertFalse(self.main.trial_status()["expired"])
 
 
+class GeraetelisteAnzeige(unittest.TestCase):
+    """Die Geraeteseite wirklich rendern und die Schalter darin pruefen.
+
+    Anlass: Das Feld `automatik_aktiv` wurde der Vorlage gar nicht uebergeben.
+    Das Haekchen "folgt der Regel" blieb dadurch immer leer, egal was
+    gespeichert war -- es liess sich nicht umlegen, weil die Anzeige den
+    gespeicherten Stand nie uebernahm. Ein Test der Logik allein haette das
+    nicht gefunden: Gespeichert wurde korrekt.
+    """
+
+    def setUp(self) -> None:
+        from fastapi.testclient import TestClient
+        from app import geraete, main
+        from app.config import config
+
+        config.set_admin_password("probe1234")
+        config.set("setup_done", True)
+        main.logged_in = lambda request: True
+        geraete.speichern([
+            {"id": "a", "name": "Zaehler", "automatik_aktiv": True, "aktiv": True},
+            {"id": "b", "name": "Steckdose", "automatik_aktiv": False, "aktiv": False},
+        ])
+        self.client = TestClient(main.app)
+        self.zeilen = self._zeilen(self.client.get("/devices").text)
+
+    def tearDown(self) -> None:
+        self.client.close()
+
+    @staticmethod
+    def _zeilen(html: str) -> dict:
+        import re
+
+        out = {}
+        for zeile in re.findall(r"<tr.*?</tr>", html, re.S):
+            name = re.search(r"<strong[^>]*>\s*([^<]+?)\s*</strong>", zeile)
+            if name:
+                out[name.group(1)] = zeile
+            elif out:
+                # Folgezeile mit den Schaltflaechen gehoert zum letzten Geraet
+                out[list(out)[-1]] += zeile
+        return out
+
+    @staticmethod
+    def _gehakt(zeile: str, feld: str) -> bool:
+        if f'name="{feld}"' not in zeile:
+            return False
+        return "checked" in zeile.split(f'name="{feld}"')[1].split(">")[0]
+
+    def test_regel_haekchen_zeigt_den_gespeicherten_stand(self) -> None:
+        self.assertTrue(self._gehakt(self.zeilen["Zaehler"], "mitmachen"))
+        self.assertFalse(self._gehakt(self.zeilen["Steckdose"], "mitmachen"))
+
+    def test_beschriftung_passt_zum_haekchen(self) -> None:
+        self.assertIn("folgt der Regel", self.zeilen["Zaehler"])
+        self.assertIn("nur von Hand", self.zeilen["Steckdose"])
+
+    def test_abfragen_haekchen_zeigt_den_gespeicherten_stand(self) -> None:
+        self.assertTrue(self._gehakt(self.zeilen["Zaehler"], "aktiv"))
+        self.assertFalse(self._gehakt(self.zeilen["Steckdose"], "aktiv"))
+
+    def test_umschalten_wirkt_und_erscheint_in_der_anzeige(self) -> None:
+        from app import geraete
+
+        self.client.post("/devices/automatik", data={"device_id": "a"},
+                         follow_redirects=False)
+        self.assertFalse(geraete.holen("a")["automatik_aktiv"])
+        zeilen = self._zeilen(self.client.get("/devices").text)
+        self.assertFalse(self._gehakt(zeilen["Zaehler"], "mitmachen"))
+
+        self.client.post("/devices/automatik",
+                         data={"device_id": "a", "mitmachen": "on"},
+                         follow_redirects=False)
+        self.assertTrue(geraete.holen("a")["automatik_aktiv"])
+        zeilen = self._zeilen(self.client.get("/devices").text)
+        self.assertTrue(self._gehakt(zeilen["Zaehler"], "mitmachen"))
+
+
 class Fehlermeldungen(unittest.TestCase):
     """Was bei einem Rechtefehler dasteht, muss zur Lage passen."""
 

@@ -1215,8 +1215,13 @@ async def devices_page(request: Request, saved: str = "", meldung: str = ""):
     meine = []
     for eintrag in geraete.liste():
         st = zustand(eintrag["id"])
+        # Die Schaltflaechen der Zeile zeigen den gespeicherten Stand des
+        # Geraets, nicht den abgeleiteten aus dem Zustand -- sonst laesst sich
+        # ein Haekchen nicht umlegen, weil die Anzeige es nie uebernimmt.
         meine.append({**st.as_dict(),
                       "aktiv": eintrag.get("aktiv", True),
+                      "automatik_aktiv": eintrag.get("automatik_aktiv", True),
+                      "switch_code": eintrag.get("switch_code", ""),
                       "aufzeichnen": eintrag.get("aufzeichnen", True)})
     return page(
         request, "devices.html",
