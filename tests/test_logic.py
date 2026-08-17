@@ -406,5 +406,67 @@ class GeraeteAufbereitungEcht(unittest.TestCase):
         self.assertEqual(v["metrics"][0]["label"], "Irgendwas neu")
 
 
+class DatenpunktZuordnung(unittest.TestCase):
+    """Nummern den Klarnamen zuordnen — ohne offizielle Tabelle."""
+
+    def test_eindeutige_werte_werden_zugeordnet(self) -> None:
+        from app.local import dp_map_aus_vergleich
+        benannt = {"cur_voltage": 2310, "cur_power": 47, "switch_1": True}
+        nummeriert = {"20": 2310, "19": 47, "1": True}
+        m = dp_map_aus_vergleich(benannt, nummeriert)
+        self.assertEqual(m["20"], "cur_voltage")
+        self.assertEqual(m["19"], "cur_power")
+        self.assertEqual(m["1"], "switch_1")
+
+    def test_mehrdeutige_werte_werden_ausgelassen(self) -> None:
+        from app.local import dp_map_aus_vergleich
+        # Im Leerlauf sind mehrere Werte 0 — daraus darf nichts geraten werden.
+        benannt = {"cur_current": 0, "cur_power": 0, "cur_voltage": 2295}
+        nummeriert = {"18": 0, "19": 0, "20": 2295}
+        m = dp_map_aus_vergleich(benannt, nummeriert)
+        self.assertEqual(m, {"20": "cur_voltage"})
+
+    def test_wahr_und_eins_werden_nicht_verwechselt(self) -> None:
+        from app.local import dp_map_aus_vergleich
+        # In Python gilt True == 1; ohne Typvergleich käme hier Unsinn heraus.
+        benannt = {"switch_1": True, "countdown_1": 1}
+        nummeriert = {"1": True, "9": 1}
+        m = dp_map_aus_vergleich(benannt, nummeriert)
+        self.assertEqual(m.get("1"), "switch_1")
+        self.assertEqual(m.get("9"), "countdown_1")
+
+    def test_ohne_gemeinsame_werte_leer(self) -> None:
+        from app.local import dp_map_aus_vergleich
+        self.assertEqual(dp_map_aus_vergleich({"a": 1}, {"5": 99}), {})
+
+
+class LokaleUebersetzung(unittest.TestCase):
+    """Die lokale Antwort muss aussehen wie die aus der Cloud."""
+
+    def bau(self, dp_map):
+        from app.local import LocalDevice
+        d = LocalDevice.__new__(LocalDevice)   # ohne tinytuya-Prüfung
+        d.dp_map = dp_map
+        return d
+
+    def test_nummern_werden_zu_namen(self) -> None:
+        d = self.bau({"1": "switch_1", "20": "cur_voltage"})
+        roh = {"1": True, "20": 2310}
+        umgesetzt = {e["code"]: e["value"] for e in [
+            {"code": d.dp_map.get(str(k), f"dp_{k}"), "value": v} for k, v in roh.items()]}
+        self.assertEqual(umgesetzt, {"switch_1": True, "cur_voltage": 2310})
+
+    def test_unbekannte_nummer_bleibt_sichtbar(self) -> None:
+        d = self.bau({"1": "switch_1"})
+        code = d.dp_map.get("77", "dp_77")
+        self.assertEqual(code, "dp_77")
+
+    def test_code_zu_dp(self) -> None:
+        d = self.bau({"1": "switch_1", "20": "cur_voltage"})
+        self.assertEqual(d._code_zu_dp("cur_voltage"), 20)
+        with self.assertRaises(Exception):
+            d._code_zu_dp("gibt_es_nicht")
+
+
 if __name__ == "__main__":
     unittest.main()

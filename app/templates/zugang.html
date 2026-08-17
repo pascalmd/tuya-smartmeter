@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Gerätezugang{% endblock %}
+{% block content %}
+
+{% if meldung %}
+  <div class="msg {{ 'err' if saved == 'error' else 'ok' }}">{{ meldung }}</div>
+{% endif %}
+
+<div class="card">
+  <h2>Wie die App dein Gerät erreicht</h2>
+  <p class="muted">
+    Drei Wege, in dieser Reihenfolge. Die App nimmt automatisch den obersten,
+    der funktioniert — du musst nichts umschalten.
+  </p>
+
+  <div class="scroll">
+    <table style="width:100%; border-collapse:collapse; font-size:14px">
+      <thead>
+        <tr style="text-align:left; color:var(--muted)">
+          <th style="padding:6px 10px 6px 0">Weg</th>
+          <th style="padding:6px 10px 6px 0">Braucht</th>
+          <th style="padding:6px 10px 6px 0">Befristet?</th>
+          <th style="padding:6px 0">Zustand</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:9px 10px 9px 0"><strong>1. Lokal</strong><div class="muted">im eigenen Netz</div></td>
+          <td style="padding:9px 10px 9px 0">Gerät erreichbar,<br>lokaler Schlüssel</td>
+          <td style="padding:9px 10px 9px 0; color:var(--ok)">nein</td>
+          <td style="padding:9px 0">
+            {% if kanal == 'lokal' %}<strong style="color:var(--ok)">aktiv</strong>
+            {% elif lokal.get('enabled') %}eingerichtet{% else %}—{% endif %}
+          </td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:9px 10px 9px 0"><strong>2. QR-Anmeldung</strong><div class="muted">über die Tuya-Cloud</div></td>
+          <td style="padding:9px 10px 9px 0">Smart-Life-Konto</td>
+          <td style="padding:9px 10px 9px 0; color:var(--ok)">nein</td>
+          <td style="padding:9px 0">
+            {% if kanal == 'qr' %}<strong style="color:var(--ok)">aktiv</strong>
+            {% elif qr.get('enabled') %}eingerichtet{% else %}—{% endif %}
+          </td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:9px 10px 9px 0"><strong>3. Entwicklerprojekt</strong><div class="muted">Access ID + Secret</div></td>
+          <td style="padding:9px 10px 9px 0">Konto auf iot.tuya.com</td>
+          <td style="padding:9px 10px 9px 0; color:var(--warn)">ja, 1 Monat</td>
+          <td style="padding:9px 0">
+            {% if kanal == 'cloud' %}<strong>aktiv</strong>
+            {% elif cfg.tuya.get('client_id') %}eingerichtet{% else %}—{% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>1. Lokal — der beste Weg, wenn er geht</h2>
+  <p class="muted">
+    Die App spricht direkt mit dem Gerät: rund 30 Millisekunden statt einer
+    Sekunde, kein Abfragelimit, keine Frist, kein Internet nötig. Bei diesem
+    Zähler kommt sogar der Zählerstand dazu, den die Cloud nicht herausgibt.
+  </p>
+
+  <form method="post" action="/zugang/lokal">
+    <label style="display:flex; align-items:center; gap:10px; margin-top:0">
+      <input type="checkbox" name="aktiv" style="width:auto" {% if lokal.get('enabled') %}checked{% endif %}>
+      Lokalen Zugang verwenden
+    </label>
+
+    <label for="ip">Adresse des Geräts im Netz</label>
+    <input type="text" id="ip" name="ip" value="{{ lokal.get('ip', '') }}"
+           placeholder="192.168.1.50" spellcheck="false">
+    <div class="hint">
+      Steht meist im Router bei den vergebenen Adressen. Am besten dort fest
+      zuweisen, damit sie sich nicht ändert.
+      {% if lokal.get('version') %}<br>Erkanntes Protokoll: {{ lokal.get('version') }}{% endif %}
+    </div>
+
+    <p style="margin-top:16px"><button type="submit">Speichern und verbinden</button></p>
+  </form>
+
+  <form method="post" action="/zugang/lokal/suchen">
+    <button class="secondary" type="submit">Im Netz suchen</button>
+    <div class="hint" style="margin-top:6px">
+      Findet nur Geräte im selben Netzabschnitt. Hängt der Zähler in einem
+      getrennten Netz (Gäste-WLAN, IoT-Bereich), trag die Adresse von Hand ein.
+    </div>
+  </form>
+
+  {% if lokal.get('dp_map') %}
+  <p class="muted" style="margin-top:14px; margin-bottom:0">
+    Zuordnung der Datenpunkte steht ({{ lokal.get('dp_map')|length }} Einträge) —
+    die App übersetzt die Gerätenummern in Klarnamen.
+  </p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>2. QR-Anmeldung — ohne Entwicklerkonto</h2>
+  <p class="muted">
+    Anmeldung mit dem Konto, das du ohnehin in der Smart-Life-App hast. Kein
+    Entwicklerprojekt, <strong>keine Frist</strong>, keine Verlängerungsanträge.
+    Dieser Weg liefert auch den Schlüssel für den lokalen Zugang oben.
+  </p>
+
+  {% if qr.get('enabled') %}
+    <div class="msg ok">Eingerichtet für Benutzercode <code>{{ qr.get('user_code') }}</code>.</div>
+  {% endif %}
+
+  {% if saved == 'qr' or qr.get('pending_token') %}
+    <div class="msg warn">
+      <strong>Jetzt scannen:</strong> Smart-Life-App öffnen → oben rechts das
+      Scan-Symbol → diesen Code scannen → in der App bestätigen. Danach hier
+      unten auf „Fertig, geprüft" drücken.
+    </div>
+    <div style="text-align:center; padding:14px; background:#fff; border-radius:10px">
+      <img src="/zugang/qr.png" alt="QR-Code zur Anmeldung" style="max-width:280px; width:100%">
+    </div>
+    <form method="post" action="/zugang/qr/fertig" style="margin-top:14px">
+      <button type="submit">Fertig, geprüft</button>
+    </form>
+  {% else %}
+    <form method="post" action="/zugang/qr/start">
+      <label for="user_code">Benutzercode aus der Smart-Life-App</label>
+      <input type="text" id="user_code" name="user_code" required spellcheck="false"
+             value="{{ qr.get('user_code', '') }}" autocomplete="off"
+             data-bwignore="1" data-lpignore="true" data-1p-ignore>
+      <div class="hint">
+        In der App zu finden unter <em>Ich → Einstellungen → Konto und
+        Sicherheit</em>; der Eintrag heißt je nach Fassung <em>User Code</em>
+        oder <em>Benutzercode</em>.
+      </div>
+      <p style="margin-top:16px"><button type="submit">QR-Code erzeugen</button></p>
+    </form>
+  {% endif %}
+
+  <div class="hint" style="margin-top:14px">
+    Diese Anmeldung nutzt eine bei Tuya registrierte Anwendungskennung. Ab Werk
+    ist die von Home Assistant eingetragen, die offen in dessen Quelltext steht —
+    gegenüber Tuya meldet sich die App also als Home Assistant an. Wer eine
+    eigene Kennung hat, kann sie in der Konfigurationsdatei hinterlegen.
+  </div>
+</div>
+
+<div class="card">
+  <h2>3. Entwicklerprojekt</h2>
+  <p class="muted" style="margin-bottom:0">
+    Der ursprüngliche Weg mit Access ID und Secret — eingerichtet unter
+    <a href="/settings">Einstellungen</a>. Er funktioniert, ist aber der einzige
+    mit Ablaufdatum. Wenn einer der beiden Wege darüber läuft, brauchst du ihn
+    nur noch als Rückfallebene.
+  </p>
+</div>
+{% endblock %}

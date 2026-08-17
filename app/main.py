@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import automation, prices, store
+from . import automation, local, prices, sharing, store
 from .config import config
 from .tibber import LEVEL_LABELS, LEVELS, TibberClient, TibberError, upcoming
 from .tuya import ENDPOINTS, TuyaClient, TuyaError, build_view
@@ -78,6 +78,7 @@ class State:
         self.last_record_ts: float = 0.0
         self.online: bool | None = None
         self.offline_since: float | None = None
+        self.kanal: str = ""     # lokal | cloud
 
     def switch_value(self, code: str) -> bool | None:
         for sw in self.view.get("switches", []):
@@ -97,6 +98,7 @@ class State:
             "device_id": config.get("device_id", ""),
             "device_name": config.get("device_name", ""),
             "online": self.online,
+            "kanal": self.kanal,
             "offline_minutes": round((time.time() - self.offline_since) / 60)
             if self.offline_since
             else 0,
@@ -178,6 +180,126 @@ def reset_client() -> None:
     _client = None
 
 
+_local: local.LocalDevice | None = None
+
+
+def local_device() -> local.LocalDevice | None:
+    """Lokaler Zugang, sofern eingerichtet."""
+    global _local
+    cfg = config.get("local") or {}
+    if not (cfg.get("enabled") and cfg.get("ip") and cfg.get("key")):
+        return None
+    if (
+        _local is None
+        or _local.ip != cfg["ip"]
+        or _local.local_key != cfg["key"]
+        or _local.device_id != config.get("device_id")
+    ):
+        _local = local.LocalDevice(
+            device_id=config.get("device_id", ""),
+            ip=cfg["ip"],
+            local_key=cfg["key"],
+            dp_map=cfg.get("dp_map") or {},
+            version=cfg.get("version") or None,
+        )
+    return _local
+
+
+def reset_local() -> None:
+    global _local
+    _local = None
+
+
+async def einrichten_lokal(ip: str) -> tuple[bool, str]:
+    """Local Key und Datenpunkt-Zuordnung aus der Cloud holen und lokal pruefen.
+
+    Das ist der einzige Moment, in dem der lokale Weg die Cloud braucht.
+    Danach laeuft er eigenstaendig — auch wenn der Testzeitraum ablaeuft.
+    """
+    device_id = config.get("device_id", "")
+    if not device_id:
+        return False, "Kein Geraet ausgewaehlt"
+
+    try:
+        api = client()
+        key = await api.local_key(device_id)
+        if not key:
+            return False, "Die Cloud gibt keinen lokalen Schluessel heraus"
+        spec = await api.device_spec_with_dp(device_id)
+    except Exception as exc:
+        return False, f"Cloud-Abfrage fehlgeschlagen: {exc}"
+
+    dp_map: dict[str, str] = {}
+    for bereich in ("status", "functions"):
+        for eintrag in spec.get(bereich, []):
+            if eintrag.get("dp_id") is not None:
+                dp_map[str(eintrag["dp_id"])] = eintrag["code"]
+
+    # Das Datenmodell kennt mehr als die Spezifikation - bei diesem Zaehler etwa
+    # den Zaehlerstand, den die Cloud im Status gar nicht mitliefert.
+    try:
+        modell = await api.device_model(device_id)
+        dp_map.update(modell)
+    except Exception as exc:
+        log.info("Datenmodell nicht abrufbar (%s) - nutze die Spezifikation", exc)
+
+    # Was weiterhin fehlt, aus der verbreiteten Standardbelegung ergaenzen.
+    for dp, code in local.STANDARD_DP_MAP.items():
+        dp_map.setdefault(dp, code)
+
+    if not dp_map:
+        return False, "Keine Datenpunkt-Zuordnung erhalten"
+
+    pruef = local.LocalDevice(device_id, ip.strip(), key, dp_map)
+    try:
+        werte = await pruef.status()
+    except Exception as exc:
+        return False, f"Geraet unter {ip} nicht erreichbar: {exc}"
+
+    cfg = dict(config.get("local") or {})
+    cfg.update({
+        "enabled": True, "ip": ip.strip(), "key": key,
+        "dp_map": dp_map, "version": pruef.version or 0,
+    })
+    config.set("local", cfg)
+    config.save()
+    reset_local()
+    store.log_event("info", f"Lokaler Zugang eingerichtet ({ip}, Protokoll {pruef.version})")
+    return True, f"Verbunden — {len(werte)} Datenpunkte, Protokoll {pruef.version}"
+
+
+_sharing: sharing.SharingDevice | None = None
+
+
+def sharing_device() -> sharing.SharingDevice | None:
+    """Zugang per QR-Anmeldung, sofern eingerichtet."""
+    global _sharing
+    cfg = config.get("sharing") or {}
+    if not (cfg.get("enabled") and cfg.get("token") and cfg.get("user_code")):
+        return None
+    if _sharing is None:
+        def token_ablegen(neu):
+            aktuell = dict(config.get("sharing") or {})
+            aktuell["token"] = neu
+            config.set("sharing", aktuell)
+            config.save()
+
+        _sharing = sharing.SharingDevice(
+            token_info=cfg["token"],
+            user_code=cfg["user_code"],
+            device_id=config.get("device_id", ""),
+            client_id=cfg.get("client_id", ""),
+            schema=cfg.get("schema", ""),
+            token_ablegen=token_ablegen,
+        )
+    return _sharing
+
+
+def reset_sharing() -> None:
+    global _sharing
+    _sharing = None
+
+
 def tibber_client() -> TibberClient:
     return TibberClient(token=(config.get("tibber") or {}).get("token", ""))
 
@@ -196,7 +318,35 @@ async def poll_device() -> None:
         state.spec = await api.device_spec(device_id)
         state.spec_fetched_at = time.time()
 
-    schnappschuss = await api.device_snapshot(device_id)
+    # Lokal zuerst: schneller, ohne Kontingent, ohne Frist.
+    schnappschuss = None
+    ld = local_device()
+    if ld:
+        try:
+            werte = await ld.status()
+            schnappschuss = {"online": True, "status": werte, "name": ""}
+            state.kanal = "lokal"
+        except Exception as exc:
+            state.kanal = ""
+            if not (config.get("local") or {}).get("fallback_cloud", True):
+                raise
+            log.warning("Lokal nicht erreichbar (%s) — weiche auf die Cloud aus", exc)
+            store.log_event("warn", f"Lokal nicht erreichbar: {str(exc)[:120]}")
+
+    if schnappschuss is None:
+        sd = sharing_device()
+        if sd:
+            try:
+                werte = await sd.status()
+                schnappschuss = {"online": await sd.online(), "status": werte, "name": ""}
+                state.kanal = "qr"
+            except Exception as exc:
+                log.warning("QR-Zugang nicht nutzbar (%s)", exc)
+
+    if schnappschuss is None:
+        schnappschuss = await api.device_snapshot(device_id)
+        state.kanal = "cloud"
+
     state.view = build_view(state.spec, schnappschuss["status"])
     state.ts = time.time()
     state.ok = True
@@ -285,6 +435,26 @@ def note_switch_state(current: bool, auto: dict[str, Any]) -> None:
             f"Automatik pausiert {auto['override_minutes']} min"
         )
         state.last_action_ts = time.time()
+
+
+async def schalten(code: str, wert: Any) -> None:
+    """Ueber den Kanal schalten, der zuletzt gelesen hat.
+
+    So bleibt Lesen und Schreiben auf demselben Weg — sonst koennte die App
+    lokal lesen und ueber die Cloud schalten, was bei Netzproblemen zu
+    widerspruechlichen Zustaenden fuehrt.
+    """
+    if state.kanal == "lokal":
+        ld = local_device()
+        if ld:
+            await ld.send_commands([{"code": code, "value": wert}])
+            return
+    if state.kanal == "qr":
+        sd = sharing_device()
+        if sd:
+            await sd.send_commands([{"code": code, "value": wert}])
+            return
+    await client().send_commands(config.get("device_id"), [{"code": code, "value": wert}])
 
 
 async def poll_prices(force: bool = False) -> None:
@@ -378,9 +548,7 @@ async def apply_automation() -> None:
         return
 
     try:
-        await client().send_commands(
-            config.get("device_id"), [{"code": code, "value": decision.desired}]
-        )
+        await schalten(code, decision.desired)
     except Exception as exc:
         store.log_event("error", f"Automatik konnte nicht schalten: {exc}")
         log.warning("Automatik-Schaltbefehl fehlgeschlagen: %s", exc)
@@ -769,6 +937,125 @@ async def devices_select(request: Request, device_id: str = Form(...), device_na
     return RedirectResponse("/prices", status_code=303)
 
 
+# ------------------------------------------------------------ Gerätezugang
+
+
+@app.get("/zugang", response_class=HTMLResponse)
+async def zugang_seite(request: Request, saved: str = "", meldung: str = ""):
+    if (redirect := guard(request)) is not None:
+        return redirect
+    return page(
+        request,
+        "zugang.html",
+        lokal=config.get("local") or {},
+        qr=config.get("sharing") or {},
+        kanal=state.kanal,
+        saved=saved,
+        meldung=meldung,
+    )
+
+
+@app.post("/zugang/lokal")
+async def zugang_lokal(request: Request, ip: str = Form(""), aktiv: str = Form("")):
+    require_login(request)
+    cfg = dict(config.get("local") or {})
+
+    if not aktiv:
+        cfg["enabled"] = False
+        config.set("local", cfg); config.save(); reset_local()
+        return RedirectResponse("/zugang?saved=1&meldung=Lokaler+Zugang+abgeschaltet", 303)
+
+    ok, text = await einrichten_lokal(ip)
+    return RedirectResponse(
+        f"/zugang?saved={'1' if ok else 'error'}&meldung={text.replace(' ', '+')}", 303
+    )
+
+
+@app.post("/zugang/lokal/suchen")
+async def zugang_lokal_suchen(request: Request):
+    """Geräte im eigenen Netz per Rundruf suchen."""
+    require_login(request)
+    gefunden = await local.suche_im_netz(10)
+    eigenes = config.get("device_id", "")
+    treffer = [ip for ip, d in gefunden.items() if d.get("gwId") == eigenes]
+    if treffer:
+        text = f"Gefunden unter {treffer[0]}"
+    elif gefunden:
+        text = f"{len(gefunden)} fremde Geräte gefunden, das eigene nicht dabei"
+    else:
+        text = "Nichts gefunden — vermutlich in einem anderen Netzsegment, Adresse von Hand eintragen"
+    return RedirectResponse(f"/zugang?meldung={text.replace(' ', '+')}", 303)
+
+
+@app.post("/zugang/qr/start")
+async def zugang_qr_start(request: Request, user_code: str = Form(...)):
+    """QR-Anmeldung beginnen."""
+    require_login(request)
+    try:
+        ergebnis = await asyncio.to_thread(sharing.qr_code_anfordern, user_code)
+    except Exception as exc:
+        return RedirectResponse(f"/zugang?saved=error&meldung={str(exc)[:120].replace(' ', '+')}", 303)
+
+    cfg = dict(config.get("sharing") or {})
+    cfg.update({"user_code": user_code.strip(), "pending_token": ergebnis["token"]})
+    config.set("sharing", cfg); config.save()
+    return RedirectResponse("/zugang?saved=qr", 303)
+
+
+@app.post("/zugang/qr/fertig")
+async def zugang_qr_fertig(request: Request):
+    """Nach dem Scannen die Zugangsdaten abholen."""
+    require_login(request)
+    cfg = dict(config.get("sharing") or {})
+    token = cfg.get("pending_token")
+    if not token:
+        return RedirectResponse("/zugang?saved=error&meldung=Kein+offener+Anmeldevorgang", 303)
+    try:
+        info = await asyncio.to_thread(
+            sharing.anmeldung_pruefen, token, cfg.get("user_code", "")
+        )
+    except Exception as exc:
+        return RedirectResponse(
+            f"/zugang?saved=error&meldung={str(exc)[:120].replace(' ', '+')}", 303
+        )
+
+    cfg.update({"enabled": True, "token": info})
+    cfg.pop("pending_token", None)
+    config.set("sharing", cfg); config.save(); reset_sharing()
+    store.log_event("info", "QR-Anmeldung eingerichtet")
+
+    # Wenn möglich gleich den lokalen Weg mitnehmen — dafür ist der QR-Zugang da.
+    text = "QR-Anmeldung eingerichtet"
+    sd = sharing_device()
+    if sd:
+        try:
+            geraete = await sd.geraete_liste()
+            eigenes = [g for g in geraete if g["id"] == config.get("device_id")]
+            if eigenes:
+                text += f" — {len(geraete)} Geräte sichtbar"
+        except Exception:
+            pass
+    return RedirectResponse(f"/zugang?saved=1&meldung={text.replace(' ', '+')}", 303)
+
+
+@app.get("/zugang/qr.png")
+async def zugang_qr_bild(request: Request):
+    """Der QR-Code als Bild."""
+    require_login(request)
+    cfg = config.get("sharing") or {}
+    token = cfg.get("pending_token")
+    if not token:
+        raise HTTPException(status_code=404, detail="Kein offener Anmeldevorgang")
+    import io
+    import qrcode
+
+    bild = qrcode.make(f"tuyaSmart--qrLogin?token={token}")
+    puffer = io.BytesIO()
+    bild.save(puffer, format="PNG")
+    from fastapi.responses import Response
+    return Response(content=puffer.getvalue(), media_type="image/png")
+
+
 # --------------------------------------------------------------- Preisquelle
 
 
@@ -1060,7 +1347,7 @@ async def api_switch(request: Request, _: None = Depends(require_api_access)):
         )
 
     try:
-        await client().send_commands(device_id, [{"code": code, "value": value}])
+        await schalten(code, value)
     except TuyaError as exc:
         store.log_event("error", f"Schaltbefehl {code}={value} fehlgeschlagen: {exc.msg}")
         raise HTTPException(status_code=502, detail=f"{exc.msg} (Code {exc.code})") from exc

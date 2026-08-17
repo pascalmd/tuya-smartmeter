@@ -32,6 +32,21 @@ _DEFAULTS: dict[str, Any] = {
     "trial_expires": "",        # Exaktmodus: Ablaufdatum aus dem Tuya-Projekt (JJJJ-MM-TT)
     "tibber": {"token": "", "home_id": "", "home_label": ""},
     "price": {},
+    "sharing": {            # Anmeldung per QR-Code, ohne Entwicklerkonto
+        "enabled": False,
+        "user_code": "",
+        "token": {},
+        "client_id": "",
+        "schema": "",
+    },
+    "local": {              # direkter Zugriff im eigenen Netz
+        "enabled": False,
+        "ip": "",
+        "key": "",
+        "version": 0,       # 0 = automatisch ermitteln
+        "dp_map": {},       # {"1": "switch_1", "20": "cur_voltage", ...}
+        "fallback_cloud": True,
+    },
     "automation": {},
     "override_until": 0,
 }

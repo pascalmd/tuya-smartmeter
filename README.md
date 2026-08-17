@@ -60,6 +60,8 @@ automatisch die passende Fassung geladen. Ein 64-bit-Betriebssystem ist nötig
 
 | Datei | Inhalt |
 |-------|--------|
+| `app/local.py` | Direkter Zugriff im eigenen Netz (tinytuya): kein Kontingent, keine Frist, ~30 ms. Übersetzt Datenpunkt-Nummern in Klarnamen |
+| `app/sharing.py` | Anmeldung per QR-Code ohne Entwicklerkonto (Tuyas `tuya-device-sharing-sdk`) |
 | `app/tuya.py` | Tuya-OpenAPI-Client (HMAC-SHA256-Signatur, Token-Refresh), Aufbereitung von Status + Spezifikation, Base64-Phasendekoder |
 | `app/prices.py` | Preisquellen: aWATTar DE/AT, Energy-Charts, Tibber. Einheitliches Format, Aggregation auf Stunden, Aufschlag/MwSt, Preisstufen |
 | `app/tibber.py` | Tibber-GraphQL (Homes, Preise heute/morgen), Hilfsfunktionen für günstigste Stunden |
@@ -69,6 +71,30 @@ automatisch die passende Fassung geladen. Ein 64-bit-Betriebssystem ist nötig
 | `app/main.py` | FastAPI: Seiten, JSON-API, Hintergrund-Poller |
 | `install.sh` | Installer für Linux/Raspberry Pi: prüft System, installiert Docker falls nötig, sucht freien Port, richtet den Dienst ein |
 | `tests/test_logic.py` | 30 Tests: Schaltregeln, Preisquellen, Fremdschaltungserkennung, Tuya-Aufbereitung — laufen ohne Cloud |
+
+## Die drei Gerätezugänge
+
+Die App versucht sie in dieser Reihenfolge und nimmt den obersten, der
+funktioniert:
+
+| | Weg | Braucht | Befristet | Geschwindigkeit |
+|---|-----|---------|-----------|-----------------|
+| 1 | **lokal** | Gerät erreichbar + Local Key | nein | ~30 ms |
+| 2 | **QR-Anmeldung** | Smart-Life-Konto | nein | ~1 s |
+| 3 | Entwicklerprojekt | Access ID + Secret | **ja, 1 Monat** | ~1 s |
+
+Stufe 2 beschafft, was Stufe 1 braucht: Die QR-Anmeldung liefert den Local Key
+mit. Damit lässt sich der lokale Weg einrichten, **ohne je ein Entwicklerprojekt
+anzulegen** — der einzige Weg mit Ablaufdatum wird überflüssig.
+
+Der lokale Weg liefert außerdem mehr: Beim DDS238-2 kommt der Zählerstand
+(`total_ele`) nur dort an, im Cloud-Status fehlt er.
+
+> **Zur QR-Anmeldung, offen gesagt:** Sie nutzt eine bei Tuya registrierte
+> Anwendungskennung; voreingestellt ist die von Home Assistant, die offen in
+> dessen Quelltext steht. Gegenüber Tuya meldet sich die App damit als Home
+> Assistant an. Deshalb steht dieser Weg an zweiter Stelle und nicht an erster —
+> lokal braucht es so etwas nicht. Wer eine eigene Kennung hat, trägt sie ein.
 
 ## Betrieb
 

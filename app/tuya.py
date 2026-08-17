@@ -173,6 +173,43 @@ class TuyaClient:
     async def device_spec(self, device_id: str) -> dict[str, Any]:
         return await self._request("GET", f"/v1.0/iot-03/devices/{device_id}/specification")
 
+    async def device_spec_with_dp(self, device_id: str) -> dict[str, Any]:
+        """Spezifikation samt Datenpunkt-Nummern.
+
+        Der lokale Zugriff spricht in Nummern (dp 20), die Cloud in Klarnamen
+        (cur_voltage). Diese Abfrage liefert beides und erlaubt damit die
+        Uebersetzung — sie ist der einzige Grund, warum fuer die Einrichtung des
+        lokalen Wegs ueberhaupt ein Cloud-Zugang noetig ist.
+        """
+        return await self._request("GET", f"/v1.1/devices/{device_id}/specifications")
+
+    async def device_model(self, device_id: str) -> dict[str, str]:
+        """Datenpunkt-Zuordnung aus dem Datenmodell.
+
+        Liefert mehr als die Spezifikation: Beim DDS238-2 etwa den
+        Zaehlerstand (`total_ele`), der im normalen Cloud-Status fehlt.
+        """
+        antwort = await self._request("GET", f"/v2.0/cloud/thing/{device_id}/model")
+        roh = antwort.get("model") if isinstance(antwort, dict) else None
+        if not roh:
+            return {}
+        modell = json.loads(roh) if isinstance(roh, str) else roh
+        zuordnung: dict[str, str] = {}
+        for dienst in modell.get("services", []):
+            for eigenschaft in dienst.get("properties", []):
+                dp, code = eigenschaft.get("abilityId"), eigenschaft.get("code")
+                if dp is not None and code:
+                    zuordnung[str(dp)] = code
+        return zuordnung
+
+    async def local_key(self, device_id: str) -> str:
+        """Den Schluessel fuer den lokalen Zugriff holen.
+
+        Aendert sich, sobald das Geraet neu angelernt wird.
+        """
+        result = await self._request("GET", f"/v1.0/devices/{device_id}")
+        return result.get("local_key", "")
+
     async def send_commands(self, device_id: str, commands: list[dict[str, Any]]) -> Any:
         return await self._request(
             "POST",
@@ -291,6 +328,8 @@ _LABELS = {
     "cur_voltage": "Spannung",
     "cur_current": "Strom",
     "cur_power": "Leistung",
+    "total_ele": "Zaehlerstand",
+    "add_ele": "Energie (Zuwachs)",
     # bei Tuya-Energiezaehlern gebraeuchlich, hier nicht gegengeprueft
     "add_ele": "Energie (Zuwachs)",
     "forward_energy_total": "Zaehlerstand gesamt",
