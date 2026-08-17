@@ -145,8 +145,9 @@ Knopf oben rechts. Such nach „Custom".
 Es gibt dort zwei Wege. Der YAML-Weg ist weniger Klickerei, der Formular-Weg
 ist übersichtlicher. Beide führen zum selben Ergebnis — nimm einen.
 
-> **Nachfolgend an einer laufenden TrueNAS 25.10.5 „Goldeye" durchgeklickt.**
-> Die Bezeichnungen stammen aus der Oberfläche selbst, nicht aus dem Gedächtnis.
+> **Beide Wege wurden an einer laufenden TrueNAS 25.10.5 „Goldeye" komplett
+> durchgeklickt** — bis zur laufenden App, jeweils mit anschließendem Rückbau.
+> Die Bezeichnungen stammen aus der Oberfläche selbst.
 
 ### Weg 1 — Install via YAML (empfohlen)
 
@@ -211,6 +212,16 @@ Abschnitte. Auszufüllen ist:
 | Network Configuration | **Ports** → *Add* | **Host Port** `8099`, **Container Port** `8099` |
 | Storage Configuration | **Storage** → *Add* | **Type**: `ixVolume` (Vorgabe), **Mount Path** `/config` |
 
+Abschließen mit **Install** — der Knopf sitzt ganz unten.
+
+Was in den aufklappenden Blöcken sonst noch steht, kann so bleiben:
+
+- **Ports**: *Port Bind Mode* („Publish port on the host for external access"),
+  *Protocol* (TCP), *Host IPs* — alles vorbelegt.
+- **Storage**: *Read Only* (aus), *ixVolume Configuration* mit *Dataset Name*
+  (vorbelegt) — nur der **Mount Path** muss eingetragen werden.
+- **Timezone** und **Restart Policy** haben brauchbare Vorgaben.
+
 > **Die häufigste Stolperstelle:** Bei *Ports*, *Storage* und *Environment
 > Variables* steht zunächst „No items have been added yet." — die Eingabefelder
 > erscheinen erst nach einem Klick auf **Add**. Wer den übersieht, sucht Felder,
@@ -221,8 +232,14 @@ Abschnitte. Auszufüllen ist:
 > Ordner lieber selbst bestimmt, stellt **Type** auf *Host Path* und wählt sein
 > Dataset.
 
-Beide Wege führen zum selben Ergebnis. Der YAML-Weg ist kürzer und weniger
-fehleranfällig.
+Beide Wege führen zum selben Ergebnis — beide wurden geprüft, die App lief
+danach jeweils auf `Running` und antwortete. Der YAML-Weg ist kürzer und weniger
+fehleranfällig: zwei Felder statt sieben, verteilt über sechs Abschnitte.
+
+> **Ein Unterschied, der irritieren kann:** Beim YAML-Weg heißt der
+> Abschluss-Knopf **Save**, beim Formular **Install**. Und intern führt TrueNAS
+> die beiden verschieden: über YAML angelegte Apps gelten als *custom app*, über
+> das Formular angelegte nicht. Für den Betrieb macht das keinen Unterschied.
 
 > **Wichtig:** Der Ordner unter `/config` muss dauerhaft sein. Dort liegen deine
 > Zugangsdaten und die Messwert-Historie. Ohne ihn ist nach jedem Neustart alles weg.
