@@ -55,20 +55,33 @@ Tuya lässt fremde Programme **nicht** mit E-Mail und Passwort der App arbeiten.
 Stattdessen brauchst du ein kostenloses Entwickler-Projekt. Das klingt schlimmer,
 als es ist — du klickst dich einmal durch und kopierst dann zwei Zeichenketten.
 
-1. Auf **iot.tuya.com** ein Konto anlegen (kostenlos).
-2. Links im Menü: **Cloud → Development → Create Cloud Project**.
+1. Auf **iot.tuya.com** ein Konto anlegen (kostenlos, siehe Kasten oben — das ist
+   nicht dein App-Konto).
+
+2. **Ein Cloud-Projekt anlegen.**
+   Im Menü links den Bereich **Cloud** öffnen, dort den Punkt zum Anlegen eines
+   Projekts — je nach Version *Development*, *Projects* oder direkt ein Knopf
+   **Create Cloud Project**. Beim Anlegen:
    - Name: frei wählbar, z. B. `Smartmeter`
    - Industry / Development Method: Standardwerte lassen
-   - **Data Center: Central Europe** ← wichtig für Deutschland
-3. Im nächsten Schritt werden APIs abgefragt. Diese drei müssen dabei sein:
-   - **IoT Core**
-   - **Authorization**
-   - **Smart Home Scene Linkage**
-4. Im fertigen Projekt unter **Overview** stehen:
-   - **Access ID / Client ID**
-   - **Access Secret / Client Secret**
+   - **Data Center: Central Europe** ← für Deutschland wichtig
 
-   Beide brauchst du gleich — kopiere sie in einen Notizzettel.
+3. **Die nötigen Dienste (APIs) müssen aktiv sein.**
+   Beim Anlegen wird meist danach gefragt; sonst findest du es im Projekt unter
+   **Service API**, *API-Verwaltung* oder ähnlich. Diese drei müssen dabei sein:
+   - `IoT Core`
+   - `Authorization`
+   - `Smart Home Scene Linkage`
+
+4. **Die beiden Zeichenketten abholen.**
+   In der Projektübersicht (*Overview*, *Project Overview*) gibt es einen Block
+   namens **Authorization Key** oder **Access Key**. Darin stehen:
+   - **Access ID** (auch *Client ID*) — 20 Zeichen
+   - **Access Secret** (auch *Client Secret*) — 32 Zeichen
+
+   Das Secret ist standardmäßig als `••••••` verborgen. **Erst auf das
+   Augen-Symbol klicken**, dann kopieren — sonst erwischt du nur die Punkte.
+
 5. **Der entscheidende Schritt — hier werden die beiden Konten verbunden:**
 
    Im Projekt auf den Reiter **Devices**. Darin gibt es einen Punkt, der je nach
@@ -83,6 +96,14 @@ als es ist — du klickst dich einmal durch und kopierst dann zwei Zeichenketten
    angelernt, nicht zurückgesetzt, nicht verschoben.
 
    Erst nach diesem Schritt sieht das Programm deinen Zähler.
+
+> **Wenn die Menüs anders heißen:** Tuya baut seine Oberfläche regelmäßig um, und
+> zwar schneller, als Anleitungen nachgezogen werden. Halte dich an die
+> Schlüsselwörter (*Cloud*, *Create*, *Authorization Key*, *Link*), nicht an den
+> genauen Wortlaut. Tuyas eigene, stets aktuelle Beschreibung des
+> Verknüpfungsschritts steht hier:
+> <https://developer.tuya.com/en/docs/iot/link-devices> — auf Englisch, dafür
+> immer passend zur aktuellen Oberfläche, meist mit Bildern.
 
 > **Hinweis zum Testzeitraum:** Tuya befristet neue Projekte. Läuft die Frist ab,
 > hört der Zugriff auf zu funktionieren. Im Projekt unter **Service → Extend Trial**
