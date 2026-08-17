@@ -22,8 +22,9 @@
   <h2>Deine Geräte</h2>
   {% if meine %}
     <p class="muted" style="margin-top:0">
-      Alle Geräte folgen derselben <a href="/automation">Regel</a>; ob ein Gerät
-      ihr folgt oder nur von Hand bedient wird, stellst du dort ein.
+      Es gibt <strong>eine</strong> Schaltregel für alle Geräte — sie steht unter
+      <a href="/automation">Automatik</a>. Hier legst du je Gerät nur fest, ob es
+      ihr folgt.
       <br><strong>abfragen</strong> aus heißt: Das Gerät ruht — es wird nicht
       abgefragt und taucht in der Überwachung nicht als Störung auf. Passend für
       eine Steckdose, die erst noch kommt oder über den Winter vom Netz ist.
@@ -35,7 +36,7 @@
             <th style="padding:6px 10px 6px 0">Gerät</th>
             <th style="padding:6px 10px 6px 0">Weg</th>
             <th style="padding:6px 10px 6px 0">Zustand</th>
-            <th style="padding:6px 10px 6px 0">Automatik</th>
+            <th style="padding:6px 10px 6px 0">Macht bei der Regel mit</th>
             <th style="padding:6px 0"></th>
           </tr>
         </thead>
@@ -60,15 +61,27 @@
               {% else %}<span style="color:var(--err)">offline</span>{% endif %}
             </td>
             <td style="padding:9px 10px 9px 0">
-              {% if not g.aktiv %}<span class="muted">—</span>
-              {% elif g.automation.enabled %}{{ g.automation.mode_label }}
-              {% else %}<span class="muted">aus (nur von Hand)</span>{% endif %}
+              {% if not g.aktiv %}
+                <span class="muted">—</span>
+              {% else %}
+                <form method="post" action="/devices/automatik" style="margin:0">
+                  <input type="hidden" name="device_id" value="{{ g.device_id }}">
+                  <label style="display:flex; gap:8px; align-items:center; margin:0; font-size:13px">
+                    <input type="checkbox" name="mitmachen" style="width:auto"
+                           {% if g.automatik_aktiv %}checked{% endif %}
+                           onchange="this.form.submit()">
+                    {% if g.automatik_aktiv %}
+                      folgt der Regel
+                    {% else %}
+                      <span class="muted">nur von Hand</span>
+                    {% endif %}
+                  </label>
+                </form>
+              {% endif %}
             </td>
             <td style="padding:9px 0; white-space:nowrap">
               <a class="btn secondary" href="/zugang?device={{ g.device_id }}"
                  style="padding:5px 10px; font-size:13px">Zugang</a>
-              <a class="btn secondary" href="/automation?device={{ g.device_id }}"
-                 style="padding:5px 10px; font-size:13px">Regel</a>
             </td>
           </tr>
           <tr>

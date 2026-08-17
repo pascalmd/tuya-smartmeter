@@ -1220,6 +1220,27 @@ async def devices_rename(request: Request, device_id: str = Form(...), name: str
     return RedirectResponse("/devices?saved=1", 303)
 
 
+@app.post("/devices/automatik")
+async def devices_automation(request: Request, device_id: str = Form(...),
+                             mitmachen: str = Form("")):
+    """Ob dieses Geraet der gemeinsamen Regel folgt."""
+    require_login(request)
+    gid = device_id.strip()
+    geraete.aktualisieren(gid, automatik_aktiv=bool(mitmachen))
+    st = _states.get(gid)
+    if st:
+        try:
+            await apply_automation(st)
+        except Exception as exc:
+            log.warning("[%s] Automatik nach Umschalten fehlgeschlagen: %s", st.label(), exc)
+    store.log_event(
+        "info",
+        "Folgt der Automatik" if mitmachen else "Wird nur noch von Hand geschaltet",
+        device=gid,
+    )
+    return RedirectResponse("/devices?saved=1", 303)
+
+
 @app.post("/devices/aktiv")
 async def devices_active(request: Request, device_id: str = Form(...), aktiv: str = Form("")):
     """Ein Geraet ruhen lassen oder wieder aufwecken."""
@@ -1586,13 +1607,8 @@ async def automation_save(request: Request):
     config.set("automation", automation.settings(auto))
     config.save()
 
-    # Welche Geraete der Regel folgen. Ohne Angabe im Formular bleibt es beim
-    # bisherigen Stand -- sonst wuerde ein Speichern aus einer aelteren Ansicht
-    # stillschweigend alle Geraete abschalten.
-    if form.get("geraete_gesetzt"):
-        mitmachen = set(form.getlist("mitmachen"))
-        for eintrag in geraete.liste():
-            geraete.aktualisieren(eintrag["id"], automatik_aktiv=eintrag["id"] in mitmachen)
+    # Wer der Regel folgt, wird nicht hier entschieden, sondern je Geraet in
+    # der Geraeteliste. Zwei Bedienorte fuer dieselbe Sache waeren einer zu viel.
 
     store.log_event(
         "info",
