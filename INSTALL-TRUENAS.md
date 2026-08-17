@@ -145,9 +145,24 @@ Knopf oben rechts. Such nach „Custom".
 Es gibt dort zwei Wege. Der YAML-Weg ist weniger Klickerei, der Formular-Weg
 ist übersichtlicher. Beide führen zum selben Ergebnis — nimm einen.
 
-### Weg A — per YAML (empfohlen, weniger Fehlerquellen)
+### Weg A — per YAML (empfohlen)
 
-Im Custom-App-Fenster auf **Install via YAML** umschalten und das hier einfügen:
+Dieser Weg ist unempfindlich gegen Umbenennungen in der Oberfläche: Du füllst
+nur zwei Felder aus, statt einem Dutzend.
+
+1. **Anwendung anlegen:** Unter **Apps** den Knopf zum Anlegen einer eigenen
+   Anwendung — je nach Version **Custom App**, **Add Custom App**, oder hinter
+   **Discover Apps** oben rechts. Such nach „Custom".
+
+2. Oben auf **Install via YAML** umschalten (in manchen Fassungen ein Reiter,
+   in anderen ein Schalter).
+
+3. **Application Name:** `tuya-smartmeter`
+   Nur Kleinbuchstaben, Ziffern und Bindestriche — das ist ein eigenes Feld
+   **neben** dem YAML-Kasten und wird gern übersehen.
+
+4. **Custom Config:** Hier hinein kommt der folgende Text. Er muss mit
+   `services:` beginnen — seit TrueNAS 25.10 ist das Pflicht.
 
 ```yaml
 services:
@@ -162,29 +177,33 @@ services:
       TZ: Europe/Berlin
 ```
 
-Eine Zeile musst du anpassen:
+Anzupassen ist nur `/mnt/DEIN-POOL/…` auf das vorher angelegte Dataset. Die
+Image-Adresse stimmt so — das Image liegt fertig bereit und muss nicht gebaut
+werden.
 
-- `/mnt/DEIN-POOL/apps/tuya-smartmeter` — ein Ordner auf deinem Pool.
-  Lege ihn vorher unter **Datasets** an, sonst legt TrueNAS ihn als Verzeichnis an.
-
-Die Image-Adresse stimmt so — das Image liegt fertig auf GitHub und muss nicht
-selbst gebaut werden.
+5. **Install** drücken.
 
 ### Weg B — über das Formular
 
-| Feld | Wert |
-|------|------|
-| Application Name | `tuya-smartmeter` |
-| Image Repository | `ghcr.io/pascalmd/tuya-smartmeter` |
-| Image Tag | `latest` |
-| Port Forwarding → Container Port | `8099` |
-| Port Forwarding → Node Port | `8099` (oder ein freier Port deiner Wahl) |
-| Storage → Mount Path | `/config` |
-| Storage → Host Path | dein Ordner, z. B. `/mnt/tank/apps/tuya-smartmeter` |
-| Environment → Name / Value | `TZ` / `Europe/Berlin` |
-| Restart Policy | `Unless Stopped` |
+Nur, wenn du lieber Felder ausfüllst. Die **Bezeichnungen und die Gruppierung
+ändern sich von Version zu Version**, deshalb hier nach Zweck sortiert statt nach
+Feldnamen. Diese sechs Dinge musst du finden:
 
-Alles andere kann auf Standard bleiben. Dann **Install**.
+| Was einzustellen ist | Wert | Wo es meist steht |
+|----------------------|------|-------------------|
+| Name der Anwendung | `tuya-smartmeter` | ganz oben, *Application Name* |
+| Welches Abbild geladen wird | `ghcr.io/pascalmd/tuya-smartmeter`, Tag `latest` | *Image Configuration* — Repository und Tag getrennt |
+| Erreichbarkeit von außen | Container-Port `8099` → Node-Port `8099` | *Network* / *Port Forwarding*, erst auf „Add" klicken |
+| Dauerhafter Ordner | Typ *Host Path*, Ordner = dein Dataset, Ziel `/config` | *Storage*, erst auf „Add" klicken |
+| Zeitzone | Name `TZ`, Wert `Europe/Berlin` | *Environment Variables*, erst auf „Add" klicken |
+| Neustartverhalten | `Unless Stopped` | *Restart Policy*, meist ganz unten |
+
+Alles Übrige kann auf Standard bleiben. Dann **Install**.
+
+> **Wenn ein Feld fehlt oder anders heißt:** In den Abschnitten *Network*,
+> *Storage* und *Environment* muss man meist erst auf einen **Add**-Knopf
+> drücken, bevor die Eingabefelder überhaupt erscheinen. Das ist die häufigste
+> Stolperstelle bei diesem Weg — und der Grund, warum Weg A einfacher ist.
 
 > **Wichtig:** Der Ordner unter `/config` muss dauerhaft sein. Dort liegen deine
 > Zugangsdaten und die Messwert-Historie. Ohne ihn ist nach jedem Neustart alles weg.
