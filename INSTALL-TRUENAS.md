@@ -145,24 +145,30 @@ Knopf oben rechts. Such nach „Custom".
 Es gibt dort zwei Wege. Der YAML-Weg ist weniger Klickerei, der Formular-Weg
 ist übersichtlicher. Beide führen zum selben Ergebnis — nimm einen.
 
-### Weg A — per YAML (empfohlen)
+### Der YAML-Weg (empfohlen)
 
-Dieser Weg ist unempfindlich gegen Umbenennungen in der Oberfläche: Du füllst
-nur zwei Felder aus, statt einem Dutzend.
+> Nachfolgend geprüft auf **TrueNAS 25.10.5 „Goldeye"** — die Bezeichnungen
+> stammen aus der laufenden Oberfläche, nicht aus dem Gedächtnis.
 
-1. **Anwendung anlegen:** Unter **Apps** den Knopf zum Anlegen einer eigenen
-   Anwendung — je nach Version **Custom App**, **Add Custom App**, oder hinter
-   **Discover Apps** oben rechts. Such nach „Custom".
+1. Links im Menü **Applications** (nicht „Apps").
 
-2. Oben auf **Install via YAML** umschalten (in manchen Fassungen ein Reiter,
-   in anderen ein Schalter).
+2. Reiter **Discover**.
 
-3. **Application Name:** `tuya-smartmeter`
-   Nur Kleinbuchstaben, Ziffern und Bindestriche — das ist ein eigenes Feld
-   **neben** dem YAML-Kasten und wird gern übersehen.
+3. Dort den Knopf **Custom App via YAML**.
+   Daneben gibt es **Custom App** — das ist das Formular, nicht dieser Weg.
 
-4. **Custom Config:** Hier hinein kommt der folgende Text. Er muss mit
-   `services:` beginnen — seit TrueNAS 25.10 ist das Pflicht.
+4. Der Bildschirm heißt **Install via YAML** und hat genau **zwei** Felder:
+
+   | Feld | Wert |
+   |------|------|
+   | **Name** (Platzhalter zeigt „Application Name") | `tuya-smartmeter` |
+   | **Custom Config** | der YAML-Text unten |
+
+   Zum Namen: nur Kleinbuchstaben und Ziffern, Bindestrich erlaubt, aber nicht
+   am Anfang oder Ende.
+
+5. In **Custom Config** einfügen — der Text **muss** mit `services:` beginnen,
+   das ist seit 25.10 Pflicht:
 
 ```yaml
 services:
@@ -177,33 +183,18 @@ services:
       TZ: Europe/Berlin
 ```
 
-Anzupassen ist nur `/mnt/DEIN-POOL/…` auf das vorher angelegte Dataset. Die
-Image-Adresse stimmt so — das Image liegt fertig bereit und muss nicht gebaut
-werden.
+   Anzupassen ist nur `/mnt/DEIN-POOL/…` auf dein Dataset.
 
-5. **Install** drücken.
+6. **Install** drücken. Nach etwa einer Minute steht die App unter
+   **Applications → Installed** auf `Running`.
 
-### Weg B — über das Formular
+### Und der Formular-Weg?
 
-Nur, wenn du lieber Felder ausfüllst. Die **Bezeichnungen und die Gruppierung
-ändern sich von Version zu Version**, deshalb hier nach Zweck sortiert statt nach
-Feldnamen. Diese sechs Dinge musst du finden:
-
-| Was einzustellen ist | Wert | Wo es meist steht |
-|----------------------|------|-------------------|
-| Name der Anwendung | `tuya-smartmeter` | ganz oben, *Application Name* |
-| Welches Abbild geladen wird | `ghcr.io/pascalmd/tuya-smartmeter`, Tag `latest` | *Image Configuration* — Repository und Tag getrennt |
-| Erreichbarkeit von außen | Container-Port `8099` → Node-Port `8099` | *Network* / *Port Forwarding*, erst auf „Add" klicken |
-| Dauerhafter Ordner | Typ *Host Path*, Ordner = dein Dataset, Ziel `/config` | *Storage*, erst auf „Add" klicken |
-| Zeitzone | Name `TZ`, Wert `Europe/Berlin` | *Environment Variables*, erst auf „Add" klicken |
-| Neustartverhalten | `Unless Stopped` | *Restart Policy*, meist ganz unten |
-
-Alles Übrige kann auf Standard bleiben. Dann **Install**.
-
-> **Wenn ein Feld fehlt oder anders heißt:** In den Abschnitten *Network*,
-> *Storage* und *Environment* muss man meist erst auf einen **Add**-Knopf
-> drücken, bevor die Eingabefelder überhaupt erscheinen. Das ist die häufigste
-> Stolperstelle bei diesem Weg — und der Grund, warum Weg A einfacher ist.
+Den gibt es zwar noch (**Discover → Custom App**), aber er ist umständlicher:
+Ports, Speicher und Umgebungsvariablen werden dort einzeln angelegt, und die
+Eingabefelder erscheinen jeweils erst nach einem Klick auf **Add**. Die
+Feldbezeichnungen haben sich zwischen den Versionen mehrfach geändert. Für diese
+App bringt er keinen Vorteil — nimm den YAML-Weg.
 
 > **Wichtig:** Der Ordner unter `/config` muss dauerhaft sein. Dort liegen deine
 > Zugangsdaten und die Messwert-Historie. Ohne ihn ist nach jedem Neustart alles weg.
