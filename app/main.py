@@ -209,6 +209,11 @@ class DeviceState:
             "trial": trial_status(),
             "automation": {
                 **auto,
+                # `enabled` ist der zusammengefasste Wert: wird DIESES Geraet
+                # automatisch geschaltet? Die Oberflaeche braucht daneben die
+                # beiden Ursachen einzeln -- sonst schickt sie bei einem
+                # ausgenommenen Geraet auf die Regelseite, wo alles stimmt.
+                "regel_aktiv": bool(automation.settings(config.get("automation"))["enabled"]),
                 "mode_label": automation.MODE_LABELS.get(auto["mode"], auto["mode"]),
                 "decision": self.last_decision,
                 "last_action": self.last_action,
@@ -1060,6 +1065,19 @@ def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str,
     )
 
 
+def sicheres_ziel(ziel: str, standard: str) -> str:
+    """Nur zurueck in die eigene App weiterleiten.
+
+    Ein Ziel aus dem Formular ist Eingabe von aussen. Ohne Pruefung liesse sich
+    daraus eine Weiterleitung auf eine fremde Seite bauen -- "//example.com"
+    sieht wie ein Pfad aus, ist fuer den Browser aber eine andere Domain.
+    """
+    ziel = (ziel or "").strip()
+    if ziel.startswith("/") and not ziel.startswith("//"):
+        return ziel
+    return standard
+
+
 def guard(request: Request):
     """Gemeinsamer Einstieg: Ersteinrichtung bzw. Anmeldung erzwingen."""
     if not config.setup_done:
@@ -1227,6 +1245,10 @@ async def devices_page(request: Request, saved: str = "", meldung: str = ""):
         request, "devices.html",
         devices=devices, error=error, quelle=quelle,
         meine=meine,
+        regel_aktiv=automation.settings(config.get("automation"))["enabled"],
+        regel_name=automation.MODE_LABELS.get(
+            automation.settings(config.get("automation"))["mode"], ""
+        ),
         uebernommen=uebernommen,
         saved=saved, meldung=meldung,
     )
@@ -1284,7 +1306,7 @@ async def devices_rename(request: Request, device_id: str = Form(...), name: str
 
 @app.post("/devices/automatik")
 async def devices_automation(request: Request, device_id: str = Form(...),
-                             mitmachen: str = Form("")):
+                             mitmachen: str = Form(""), ziel: str = Form("")):
     """Ob dieses Geraet der gemeinsamen Regel folgt."""
     require_login(request)
     gid = device_id.strip()
@@ -1300,7 +1322,7 @@ async def devices_automation(request: Request, device_id: str = Form(...),
         "Folgt der Automatik" if mitmachen else "Wird nur noch von Hand geschaltet",
         device=gid,
     )
-    return RedirectResponse("/devices?saved=1", 303)
+    return RedirectResponse(sicheres_ziel(ziel, "/devices?saved=1"), 303)
 
 
 @app.post("/devices/aktiv")

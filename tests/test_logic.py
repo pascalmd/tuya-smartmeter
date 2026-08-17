@@ -528,6 +528,69 @@ class GeraetelisteAnzeige(unittest.TestCase):
         self.assertTrue(self._gehakt(zeilen["Zaehler"], "mitmachen"))
 
 
+class AutomatikZustaende(unittest.TestCase):
+    """Zwei Schalter, vier Faelle -- die Oberflaeche muss sie unterscheiden.
+
+    Anlass: Ein Geraet auf "nur von Hand" meldete auf der Uebersicht
+    "Automatik ist aus" und verlinkte auf die Regelseite. Dort war alles
+    richtig eingestellt, denn ausgenommen war nur dieses eine Geraet -- eine
+    Sackgasse ohne Weg zurueck.
+    """
+
+    def setUp(self) -> None:
+        from app import geraete, main
+        from app.config import config
+
+        self.main = main
+        self.config = config
+        main._states.clear()
+        geraete.speichern([{"id": "a", "name": "Zaehler", "automatik_aktiv": True}])
+
+    def lage(self, regel_an: bool, macht_mit: bool) -> dict:
+        from app import geraete
+
+        self.config.set("automation", {"enabled": regel_an, "mode": "threshold",
+                                       "threshold_ct": 25.0})
+        geraete.aktualisieren("a", automatik_aktiv=macht_mit)
+        return self.main.zustand("a").as_dict()["automation"]
+
+    def test_regel_aus_ist_von_geraet_ausgenommen_unterscheidbar(self) -> None:
+        aus = self.lage(regel_an=False, macht_mit=True)
+        self.assertFalse(aus["regel_aktiv"])
+        self.assertTrue(aus["mitmachen"])
+
+        ausgenommen = self.lage(regel_an=True, macht_mit=False)
+        self.assertTrue(ausgenommen["regel_aktiv"])
+        self.assertFalse(ausgenommen["mitmachen"])
+
+    def test_zusammengefasster_wert_bleibt_richtig(self) -> None:
+        """`enabled` beantwortet weiterhin: Wird DIESES Geraet automatisch geschaltet?"""
+        self.assertFalse(self.lage(regel_an=False, macht_mit=True)["enabled"])
+        self.assertFalse(self.lage(regel_an=True, macht_mit=False)["enabled"])
+        self.assertFalse(self.lage(regel_an=False, macht_mit=False)["enabled"])
+        self.assertTrue(self.lage(regel_an=True, macht_mit=True)["enabled"])
+
+    def test_begruendung_nennt_den_richtigen_grund(self) -> None:
+        import asyncio
+
+        self.lage(regel_an=True, macht_mit=False)
+        st = self.main.zustand("a")
+        asyncio.run(self.main.apply_automation(st))
+        self.assertIn("dieses Gerät", st.last_decision["reason"])
+
+        self.lage(regel_an=False, macht_mit=True)
+        asyncio.run(self.main.apply_automation(st))
+        self.assertIn("Automatik ist aus", st.last_decision["reason"])
+
+    def test_rueckkehrziel_bleibt_in_der_app(self) -> None:
+        """Ein Ziel aus dem Formular darf nicht auf eine fremde Seite fuehren."""
+        self.assertEqual(self.main.sicheres_ziel("/", "/devices"), "/")
+        self.assertEqual(self.main.sicheres_ziel("/?device=a", "/devices"), "/?device=a")
+        self.assertEqual(self.main.sicheres_ziel("//example.com", "/devices"), "/devices")
+        self.assertEqual(self.main.sicheres_ziel("https://example.com", "/devices"), "/devices")
+        self.assertEqual(self.main.sicheres_ziel("", "/devices"), "/devices")
+
+
 class Fehlermeldungen(unittest.TestCase):
     """Was bei einem Rechtefehler dasteht, muss zur Lage passen."""
 

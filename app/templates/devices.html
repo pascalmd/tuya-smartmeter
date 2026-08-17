@@ -18,11 +18,21 @@
   </div>
 {% endif %}
 
+{% if meine and not regel_aktiv %}
+  <div class="msg warn">
+    <strong>Die Automatik ist insgesamt ausgeschaltet.</strong> Die Häkchen unten
+    legen fest, welche Geräte ihr folgen <em>würden</em> — solange die Regel aus
+    ist, wird keines nach dem Preis geschaltet.
+    <a href="/automation">Regel einschalten</a>
+  </div>
+{% endif %}
+
 <div class="card">
   <h2>Deine Geräte</h2>
   {% if meine %}
     <p class="muted" style="margin-top:0">
-      Es gibt <strong>eine</strong> Schaltregel für alle Geräte — sie steht unter
+      Es gibt <strong>eine</strong> Schaltregel für alle Geräte{% if regel_name %}
+      — zurzeit <em>{{ regel_name }}</em>{% endif %}, sie steht unter
       <a href="/automation">Automatik</a>. Hier legst du je Gerät nur fest, ob es
       ihr folgt.
       <br><strong>abfragen</strong> aus heißt: Das Gerät ruht — es wird nicht

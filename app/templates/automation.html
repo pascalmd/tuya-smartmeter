@@ -38,7 +38,15 @@
       <input type="checkbox" name="enabled" style="width:auto" {% if auto.enabled %}checked{% endif %}>
       Automatik aktiv
     </label>
-    <div class="hint">Ist sie aus, schaltet nur noch die Hand-Bedienung auf der Übersicht.</div>
+    <div class="hint">
+      Der Hauptschalter{% if geraete and geraete|length > 1 %} für alle Geräte{% endif %}.
+      Ist er aus, wird nichts mehr nach dem Preis geschaltet — bedient wird dann nur
+      noch von Hand auf der <a href="/">Übersicht</a>.
+      {% if geraete and geraete|length > 1 %}
+        Ist er an, gilt die Regel für die Geräte, die unten aufgeführt sind;
+        die Auswahl selbst triffst du unter <a href="/devices">Geräte</a>.
+      {% endif %}
+    </div>
 
     {% if geraete|default([])|length > 1 %}
       {# Bei mehreren Geraeten hat jedes seinen eigenen Ausgang — er steht unten
@@ -71,6 +79,10 @@
     <p class="muted" style="margin-top:0">
       Wer mitmacht, stellst du unter <a href="/devices">Geräte</a> ein — dort
       steht das Häkchen direkt bei jedem Gerät.
+      {% if not auto.enabled %}
+        <br><strong>Solange die Automatik oben ausgeschaltet ist, wird keines
+        davon geschaltet.</strong>
+      {% endif %}
     </p>
     <div class="scroll">
       <table style="width:100%; border-collapse:collapse; font-size:14px">

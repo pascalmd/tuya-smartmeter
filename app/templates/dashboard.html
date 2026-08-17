@@ -116,8 +116,13 @@ function zeigeGeraete(liste) {
       </button>`).join('') || '<span class="muted">–</span>';
     const leistung = (g.metrics || []).filter(m => m.code === 'cur_power')
       .map(m => `${fmt(m.value)} ${m.unit}`).join('') || '';
-    const regel = g.automation && g.automation.enabled
-      ? `Automatik · ${g.automation.mode_label}` : 'von Hand';
+    // Drei Lagen, nicht zwei: Die Regel laeuft, sie ist insgesamt aus, oder
+    // dieses eine Geraet ist ausgenommen. "von Hand" fuer alles waere
+    // irrefuehrend -- man suchte den Grund dann beim Geraet.
+    const a = g.automation || {};
+    const regel = a.enabled ? `Automatik · ${a.mode_label}`
+      : !a.regel_aktiv ? '<span title="Der Hauptschalter unter Automatik ist aus">Regel aus</span>'
+      : 'von Hand';
     const dick = g.device_id === DEVICE_ID ? 'font-weight:600' : '';
     return `<tr style="border-top:1px solid var(--line)">
       <td style="padding:9px 12px 9px 0"><a href="/?device=${g.device_id}" style="${dick}">${name}</a></td>
@@ -216,10 +221,26 @@ async function load() {
         </div>`).join('')
     : '<span class="muted">Dieses Gerät meldet keinen schaltbaren Ausgang.</span>';
 
-  // Automatik-Hinweis
+  // Automatik-Hinweis. Zwei Schalter, zwei Ursachen: Die Regel kann
+  // insgesamt aus sein, oder dieses eine Geraet ist von ihr ausgenommen.
+  // Beides mit "Automatik ist aus" zu beschriften schickte im zweiten Fall
+  // auf die Regelseite, wo alles richtig steht -- eine Sackgasse.
   const note = document.getElementById('automation-note');
-  if (!auto.enabled) {
-    note.innerHTML = 'Automatik ist aus. <a href="/automation">Einrichten</a>';
+  if (!auto.regel_aktiv) {
+    note.innerHTML = 'Die Automatik ist insgesamt ausgeschaltet — kein Gerät wird ' +
+      'nach dem Preis geschaltet. <a href="/automation">Regel einrichten</a>';
+  } else if (!auto.mitmachen) {
+    note.innerHTML = `Dieses Gerät wird nur von Hand geschaltet — die Regel
+      (${auto.mode_label}) gilt für andere Geräte weiter.
+      <form method="post" action="/devices/automatik" style="display:inline">
+        <input type="hidden" name="device_id" value="${DEVICE_ID}">
+        <input type="hidden" name="mitmachen" value="on">
+        <input type="hidden" name="ziel" value="${location.pathname}${location.search}">
+        <button class="secondary" style="padding:4px 10px; font-size:13px">
+          Der Automatik folgen lassen
+        </button>
+      </form>
+      <a href="/devices" style="margin-left:8px">Geräte verwalten</a>`;
   } else if (auto.override_active) {
     note.innerHTML = `Handbetrieb — Automatik pausiert (noch ${auto.override_remaining_minutes} min).
       <form method="post" action="/automation/resume" style="display:inline">
