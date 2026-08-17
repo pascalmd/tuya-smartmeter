@@ -522,5 +522,22 @@ class BlockGedaechtnis(unittest.TestCase):
                         "mit engem Fenster darf morgen nicht gewaehlt werden")
 
 
+class Waehrung(unittest.TestCase):
+    """Tibber ist in mehreren Laendern taetig — die Waehrung darf nicht raten."""
+
+    def test_boersenquellen_sind_euro(self) -> None:
+        # aWATTar und Energy-Charts liefern ausschliesslich EUR/MWh.
+        from app import prices as pr
+        self.assertTrue(pr.is_spot("awattar_de"))
+        self.assertTrue(pr.is_spot("energy_charts"))
+
+    def test_einheit_haengt_an_der_waehrung(self) -> None:
+        """Die Anzeige darf Kronen nicht als Cent ausgeben."""
+        for waehrung, erwartet in (("EUR", "ct/kWh"), ("SEK", "SEK-Cent/kWh"),
+                                   ("NOK", "NOK-Cent/kWh")):
+            einheit = "ct/kWh" if waehrung == "EUR" else f"{waehrung}-Cent/kWh"
+            self.assertEqual(einheit, erwartet)
+
+
 if __name__ == "__main__":
     unittest.main()

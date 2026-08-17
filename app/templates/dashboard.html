@@ -102,12 +102,14 @@ async function load() {
 
   // Preis
   const p = s.price || {};
-  document.getElementById('price-now').textContent = p.ct != null ? fmt(p.ct) + ' ct/kWh' : '–';
+  const einheit = p.einheit || 'ct/kWh';
+  document.getElementById('price-now').textContent = p.ct != null ? fmt(p.ct) + ' ' + einheit : '–';
   const preisMeta = document.getElementById('price-meta');
   if (p.ct != null) {
     const teile = [];
     if (p.level_label) teile.push(p.level_label);
     if (p.is_spot && p.spot_ct != null) teile.push('Börse ' + fmt(p.spot_ct) + ' ct + Aufschlag');
+    if (p.currency && p.currency !== 'EUR') teile.push('Währung ' + p.currency);
     teile.push('Stand vor ' + Math.round(p.age_seconds || 0) + ' s');
     preisMeta.textContent = teile.join(' · ');
   } else {

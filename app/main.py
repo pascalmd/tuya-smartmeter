@@ -136,6 +136,9 @@ class State:
                 ),
                 "age_seconds": round(time.time() - self.prices_ts, 1) if self.prices_ts else None,
                 "error": self.price_error,
+                "currency": self.prices.get("currency", "EUR"),
+                "einheit": "ct/kWh" if self.prices.get("currency", "EUR") == "EUR"
+                           else f"{self.prices.get('currency')}-Cent/kWh",
                 "upcoming": upcoming(
                     list(self.prices.get("today") or []) + list(self.prices.get("tomorrow") or []),
                     dt.datetime.now(dt.timezone.utc),
@@ -1414,6 +1417,18 @@ async def healthz():
         })
     interval = int(config.get("refresh_seconds", 180) or 180)
     age = time.time() - state.ts if state.ts else None
+
+    # Nach dem Start dauert es bis zum ersten Abruf ein Intervall. Das ist kein
+    # Fehler — wer hier "degraded" meldet, loest bei jeder Aktualisierung einen
+    # Fehlalarm in der Ueberwachung aus.
+    laeuft_erst_an = state.ts == 0 and (time.time() - state.started_at) < interval + 30
+    if laeuft_erst_an:
+        return JSONResponse({
+            "status": "starting",
+            "detail": "Der erste Abruf steht noch aus",
+            "version": VERSION, "build_date": BUILD_DATE,
+        })
+
     stale = age is not None and age > max(60, interval * 6)
     healthy = state.ok and not stale and state.online is not False
     return JSONResponse(

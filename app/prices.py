@@ -250,14 +250,25 @@ async def fetch(price_cfg: dict[str, Any], tibber_cfg: dict[str, Any]) -> dict[s
         if not (token and home):
             raise PriceError("Tibber ist als Quelle gewählt, aber Token oder Zuhause fehlt")
         try:
-            return await TibberClient(token=token).prices(home)
+            daten = await TibberClient(token=token).prices(home)
         except TibberError as exc:
             raise PriceError(str(exc)) from exc
 
+        # Tibber ist in mehreren Laendern taetig und liefert die Waehrung mit.
+        # Ohne diese Pruefung wuerden schwedische Kronen als Cent angezeigt —
+        # aufgefallen am oeffentlichen Demo-Zugang, der ein Haus in Schweden
+        # zeigt: 1,506 SEK erschienen als "150,60 ct/kWh".
+        daten["currency"] = (daten.get("current") or {}).get("currency") or "EUR"
+        return daten
+
     if quelle in ("awattar_de", "awattar_at"):
-        return await _fetch_awattar(SOURCES[quelle]["url"], cfg, now)
+        daten = await _fetch_awattar(SOURCES[quelle]["url"], cfg, now)
+        daten["currency"] = "EUR"
+        return daten
 
     if quelle == "energy_charts":
-        return await _fetch_energy_charts(cfg, now)
+        daten = await _fetch_energy_charts(cfg, now)
+        daten["currency"] = "EUR"
+        return daten
 
     raise PriceError(f"Unbekannte Preisquelle '{quelle}'")
