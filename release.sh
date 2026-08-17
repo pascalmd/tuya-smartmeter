@@ -61,8 +61,13 @@ bw get password "$BW_ITEM" | ssh "$BUILD_HOST" 'docker login ghcr.io -u pascalmd
 ok "angemeldet"
 
 info "Bauen fuer amd64 und arm64, dann hochladen (dauert einige Minuten)"
+BUILD_DATE="$(date -u +%Y-%m-%d)"
+GIT_COMMIT="$(git rev-parse --short HEAD)"
 ssh "$BUILD_HOST" "cd /tmp/tuya-build && docker buildx build \
   --platform linux/amd64,linux/arm64 \
+  --build-arg APP_VERSION=$VERSION \
+  --build-arg BUILD_DATE=$BUILD_DATE \
+  --build-arg GIT_COMMIT=$GIT_COMMIT \
   -t $IMAGE:latest -t $IMAGE:$VERSION --push ." 2>&1 | tail -3
 
 info "Abmelden"

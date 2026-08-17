@@ -29,6 +29,11 @@ log = logging.getLogger("tuya-smartmeter")
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+# Wird beim Bauen gesetzt; im Entwicklungsbetrieb bleibt es bei "dev".
+VERSION = os.environ.get("APP_VERSION", "dev")
+BUILD_DATE = os.environ.get("BUILD_DATE", "unbekannt")
+GIT_COMMIT = os.environ.get("GIT_COMMIT", "unbekannt")
+
 # Tuyas kostenlose "Trial Edition" erlaubt 26.000 API-Aufrufe im Monat - das
 # sind 867 am Tag oder einer alle 100 Sekunden. Bei 10 s Takt waere das
 # Kontingent nach drei Tagen aufgebraucht. 180 s lassen der Automatik reichlich
@@ -111,6 +116,8 @@ class State:
             "polls": self.polls,
             "failures": self.failures,
             "uptime_seconds": round(time.time() - self.started_at),
+            "version": VERSION,
+            "build_date": BUILD_DATE,
             **self.view,
             "price": {
                 "source": price_cfg["source"],
@@ -675,7 +682,12 @@ def require_api_access(request: Request) -> None:
 
 
 def page(request: Request, name: str, **ctx: Any) -> HTMLResponse:
-    return TEMPLATES.TemplateResponse(request, name, {"cfg": config, "show_nav": True, **ctx})
+    return TEMPLATES.TemplateResponse(
+        request, name,
+        {"cfg": config, "show_nav": True,
+         "version": VERSION, "build_date": BUILD_DATE, "git_commit": GIT_COMMIT,
+         **ctx},
+    )
 
 
 # Die Verlaengerung ist bei Tuya ein Antrag, kein Klick - laut Support dauert
@@ -1396,7 +1408,10 @@ async def api_prices(_: None = Depends(require_api_access)):
 async def healthz():
     """Fuer den TrueNAS-Healthcheck: laeuft der Dienst und ist der Stand frisch?"""
     if not config.setup_done:
-        return JSONResponse({"status": "setup", "detail": "Ersteinrichtung offen"})
+        return JSONResponse({
+            "status": "setup", "detail": "Ersteinrichtung offen",
+            "version": VERSION, "build_date": BUILD_DATE,
+        })
     interval = int(config.get("refresh_seconds", 180) or 180)
     age = time.time() - state.ts if state.ts else None
     stale = age is not None and age > max(60, interval * 6)
@@ -1411,6 +1426,9 @@ async def healthz():
             "trial": trial_status(),
             "polls": state.polls,
             "failures": state.failures,
+            "version": VERSION,
+            "build_date": BUILD_DATE,
+            "git_commit": GIT_COMMIT,
         },
         status_code=200,  # Container bleibt oben, auch wenn eine Cloud zickt
     )

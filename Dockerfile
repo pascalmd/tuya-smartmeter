@@ -1,8 +1,17 @@
 FROM python:3.12-slim
 
+# Beim Bauen mitgegeben (siehe release.sh), damit in der Oberflaeche steht,
+# welche Fassung laeuft — sonst weiss niemand, ob eine Korrektur schon drin ist.
+ARG APP_VERSION=dev
+ARG BUILD_DATE=unbekannt
+ARG GIT_COMMIT=unbekannt
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    CONFIG_DIR=/config
+    CONFIG_DIR=/config \
+    APP_VERSION=$APP_VERSION \
+    BUILD_DATE=$BUILD_DATE \
+    GIT_COMMIT=$GIT_COMMIT
 
 WORKDIR /srv
 
