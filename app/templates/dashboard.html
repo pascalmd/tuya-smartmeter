@@ -103,13 +103,17 @@ function zeigeGeraete(liste) {
       : g.online === false
         ? '<span style="color:var(--err)">offline</span>'
         : '<span class="muted">—</span>';
+    // Erst der Zustand, dann die Aktion -- dieselbe Reihenfolge wie in der
+    // Schalterkarte weiter unten. Andersherum liest man den Knopf zuerst und
+    // haelt seine Beschriftung fuer den Zustand.
     const schalter = (g.switches || []).filter(s => s.present).map(s => `
-      <button type="button" class="secondary" style="padding:4px 12px; font-size:13px"
+      <span class="pill" style="color:${s.value ? 'var(--ok)' : 'var(--muted)'};
+            border-color:${s.value ? 'var(--ok)' : 'var(--line)'}">
+        ${s.value ? 'ein' : 'aus'}</span>
+      <button type="button" class="secondary" style="padding:4px 12px; font-size:13px; margin-left:8px"
               onclick="schalteGeraet('${g.device_id}', '${s.code}', ${!s.value}, this)">
         ${s.value ? 'ausschalten' : 'einschalten'}
-      </button>
-      <span class="pill" style="margin-left:6px; color:${s.value ? 'var(--ok)' : 'var(--muted)'}">
-        ${s.value ? 'ein' : 'aus'}</span>`).join('') || '<span class="muted">–</span>';
+      </button>`).join('') || '<span class="muted">–</span>';
     const leistung = (g.metrics || []).filter(m => m.code === 'cur_power')
       .map(m => `${fmt(m.value)} ${m.unit}`).join('') || '';
     const regel = g.automation && g.automation.enabled
