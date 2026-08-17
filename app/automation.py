@@ -28,8 +28,8 @@ DEFAULTS: dict[str, Any] = {
 
 MODE_LABELS = {
     "threshold": "Preisschwelle",
-    "cheapest": "Guenstigste Stunden",
-    "cheapest_block": "Guenstigster Block am Stueck",
+    "cheapest": "Günstigste Stunden",
+    "cheapest_block": "Günstigster Block am Stück",
     "level": "Preisstufe",
 }
 

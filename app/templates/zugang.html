@@ -7,11 +7,27 @@
 {% endif %}
 
 <div class="card">
+  <h2>Ausgewähltes Gerät</h2>
+  <p style="margin:0; display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+    <strong>{{ cfg.get('device_name') or 'noch keines' }}</strong>
+    <a class="btn secondary" href="/devices">Anderes Gerät wählen</a>
+  </p>
+</div>
+
+<div class="card">
   <h2>Wie die App dein Gerät erreicht</h2>
   <p class="muted">
     Drei Wege, in dieser Reihenfolge. Die App nimmt automatisch den obersten,
     der funktioniert — du musst nichts umschalten.
   </p>
+
+  <div class="msg warn" style="margin-bottom:14px">
+    <strong>Der lokale Weg allein genügt nicht.</strong> Um direkt mit dem Gerät
+    zu reden, braucht die App dessen lokalen Schlüssel — und den gibt Tuya nur
+    über die Cloud heraus. Deshalb richtest du einmal die
+    <a href="#qr">QR-Anmeldung</a> ein; sie holt den Schlüssel und trägt ihn hier
+    ein. Danach läuft der Alltag lokal, ohne Internet und ohne Frist.
+  </div>
 
   <div class="scroll">
     <table style="width:100%; border-collapse:collapse; font-size:14px">
@@ -26,10 +42,11 @@
       <tbody>
         <tr style="border-top:1px solid var(--line)">
           <td style="padding:9px 10px 9px 0"><strong>1. Lokal</strong><div class="muted">im eigenen Netz</div></td>
-          <td style="padding:9px 10px 9px 0">Gerät erreichbar,<br>lokaler Schlüssel</td>
+          <td style="padding:9px 10px 9px 0">Gerät im selben Netz,<br>lokaler Schlüssel <span class="muted">(kommt aus Weg 2)</span></td>
           <td style="padding:9px 10px 9px 0; color:var(--ok)">nein</td>
           <td style="padding:9px 0">
             {% if kanal == 'lokal' %}<strong style="color:var(--ok)">aktiv</strong>
+            {% elif lokal.get('enabled') and not lokal.get('key') %}<span style="color:var(--warn)">Schlüssel fehlt</span>
             {% elif lokal.get('enabled') %}eingerichtet{% else %}—{% endif %}
           </td>
         </tr>
@@ -63,6 +80,17 @@
     Sekunde, kein Abfragelimit, keine Frist, kein Internet nötig. Bei diesem
     Zähler kommt sogar der Zählerstand dazu, den die Cloud nicht herausgibt.
   </p>
+
+  {% if lokal.get('key') %}
+    <div class="msg ok">Lokaler Schlüssel liegt vor — der direkte Weg ist möglich.</div>
+  {% else %}
+    <div class="msg warn">
+      <strong>Es fehlt noch der lokale Schlüssel.</strong> Ohne ihn bleibt dieses
+      Feld wirkungslos, auch wenn die Adresse stimmt. Richte zuerst die
+      <a href="#qr">QR-Anmeldung</a> weiter unten ein — sie holt den Schlüssel
+      automatisch hierher.
+    </div>
+  {% endif %}
 
   <form method="post" action="/zugang/lokal">
     <label style="display:flex; align-items:center; gap:10px; margin-top:0">
@@ -98,12 +126,14 @@
   {% endif %}
 </div>
 
-<div class="card">
-  <h2>2. QR-Anmeldung — ohne Entwicklerkonto</h2>
+<div class="card" id="qr">
+  <h2>2. QR-Anmeldung — die Grundlage für beides</h2>
   <p class="muted">
     Anmeldung mit dem Konto, das du ohnehin in der Smart-Life-App hast. Kein
     Entwicklerprojekt, <strong>keine Frist</strong>, keine Verlängerungsanträge.
-    Dieser Weg liefert auch den Schlüssel für den lokalen Zugang oben.
+    <strong>Diesen Schritt macht praktisch jeder</strong> — er ist zugleich der
+    Ersatz für das Entwicklerkonto <em>und</em> die Quelle des lokalen
+    Schlüssels für Weg 1.
   </p>
 
   {% if qr.get('enabled') %}

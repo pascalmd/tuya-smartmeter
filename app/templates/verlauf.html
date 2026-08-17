@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Verlauf{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>Was aufgezeichnet wird</h2>
+  <p class="muted" style="margin-top:0">
+    Die App legt die Messwerte des Zählers in einer Datei auf diesem Server ab —
+    <code>/config/history.db</code>. Sonst verlässt nichts das Haus.
+  </p>
+  <div class="scroll">
+    <table style="width:100%; border-collapse:collapse; font-size:14px">
+      <tbody>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0; width:40%">Wie oft</td>
+          <td style="padding:7px 0">
+            {% if aufzeichnung %}alle {{ aufzeichnung }} Sekunden{% else %}<strong>gar nicht</strong> — Aufzeichnung ist abgeschaltet{% endif %}
+          </td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0">Was</td>
+          <td style="padding:7px 0">alle Zahlenwerte, die das Gerät meldet — {{ codes|join(', ') if codes else 'noch nichts' }}</td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0">Wie lange</td>
+          <td style="padding:7px 0">{{ aufbewahrung }} Tage, danach wird Älteres gelöscht</td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0">Außerdem</td>
+          <td style="padding:7px 0">Ereignisse: Schaltvorgänge, Ausfälle, Änderungen (siehe unten)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="hint" style="margin-bottom:0">
+    Wie oft aufgezeichnet wird, stellst du unter <a href="/settings">Einstellungen</a> ein.
+    Auf einem Raspberry Pi ist seltener schonender für die Speicherkarte.
+  </p>
+</div>
+
+{% if codes %}
+<div class="card">
+  <h2>Messwert ansehen</h2>
+
+  <form method="get" action="/verlauf" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end">
+    <span style="flex:1 1 200px">
+      <label for="code" style="margin-top:0">Größe</label>
+      <select id="code" name="code">
+        {% for c in codes %}
+          <option value="{{ c }}" {% if c == code %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </span>
+    <span style="flex:0 1 160px">
+      <label for="hours" style="margin-top:0">Zeitraum</label>
+      <select id="hours" name="hours">
+        {% for h, t in [(6,'6 Stunden'), (24,'1 Tag'), (72,'3 Tage'), (168,'1 Woche'), (720,'30 Tage')] %}
+          <option value="{{ h }}" {% if h == hours %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </span>
+    <button type="submit">Anzeigen</button>
+  </form>
+
+  {% if punkte %}
+    {% set werte = punkte|map(attribute='value')|list %}
+    {% set hoch = werte|max %}
+    {% set tief = werte|min %}
+    {% set spanne = (hoch - tief) or 1 %}
+    {% set einheit = einheiten.get(code, '') %}
+
+    <div class="scroll" style="margin-top:18px">
+      <svg viewBox="0 0 900 240" preserveAspectRatio="none"
+           style="width:100%; min-width:520px; height:240px; display:block"
+           role="img" aria-label="Verlauf von {{ code }}">
+        <!-- Gitter, bewusst zurückhaltend -->
+        {% for i in range(5) %}
+          <line x1="0" y1="{{ 20 + i * 45 }}" x2="900" y2="{{ 20 + i * 45 }}"
+                stroke="var(--line)" stroke-width="1" />
+        {% endfor %}
+        <polyline
+          points="{% for p in punkte %}{{ (loop.index0 / ((punkte|length - 1) or 1) * 900)|round(1) }},{{ (200 - (p.value - tief) / spanne * 180 + 20)|round(1) }} {% endfor %}"
+          fill="none" stroke="var(--accent)" stroke-width="2"
+          stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" />
+      </svg>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; font-size:12.5px; color:var(--muted); margin-top:4px">
+      <span>{{ punkte[0].ts | zeitpunkt }}</span>
+      <span>{{ punkte[-1].ts | zeitpunkt }}</span>
+    </div>
+
+    <div class="muted" style="font-size:13px; display:flex; gap:20px; flex-wrap:wrap; margin-top:12px">
+      <span>höchster: <strong>{{ hoch }}</strong> {{ einheit }}</span>
+      <span>niedrigster: <strong>{{ tief }}</strong> {{ einheit }}</span>
+      <span>zuletzt: <strong>{{ punkte[-1].value }}</strong> {{ einheit }}</span>
+      <span>{{ punkte|length }} Messpunkte</span>
+    </div>
+  {% else %}
+    <p class="muted" style="margin-top:16px">
+      Für diesen Zeitraum liegen keine Werte vor.
+    </p>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Ereignisse</h2>
+  {% if ereignisse %}
+    <div class="scroll" style="max-height:320px; overflow-y:auto">
+      <table style="width:100%; border-collapse:collapse; font-size:14px">
+        <tbody>
+          {% for e in ereignisse %}
+          <tr style="border-top:1px solid var(--line)">
+            <td style="padding:7px 12px 7px 0; white-space:nowrap; color:var(--muted); font-variant-numeric:tabular-nums">
+              {{ e.ts | zeitpunkt }}
+            </td>
+            <td style="padding:7px 12px 7px 0">
+              <span class="pill" style="font-size:11px; padding:2px 8px; border-radius:999px;
+                    border:1px solid var(--line);
+                    color:{% if e.kind == 'error' %}var(--err){% elif e.kind == 'warn' %}var(--warn){% elif e.kind == 'switch' %}var(--ok){% else %}var(--muted){% endif %}">
+                {{ e.kind }}
+              </span>
+            </td>
+            <td style="padding:7px 0">{{ e.message }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted" style="margin:0">Noch keine Ereignisse.</p>
+  {% endif %}
+</div>
+{% endblock %}

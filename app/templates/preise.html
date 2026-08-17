@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Strompreise{% endblock %}
+{% block content %}
+
+{% if fehler %}<div class="msg err">Preisabruf: {{ fehler }}</div>{% endif %}
+
+<div class="card">
+  <h2>Jetzt</h2>
+  {% if aktuell.get('total') is not none %}
+    <div style="font-size:34px; font-weight:700; line-height:1.15">
+      {{ '%.2f'|format(aktuell.total * 100) }} <span style="font-size:18px; font-weight:500">{{ einheit }}</span>
+    </div>
+    <div class="muted">
+      {{ quelle }}
+      {% if auto.enabled %} · Automatik: {{ auto.mode_label }}{% endif %}
+    </div>
+  {% else %}
+    <p class="muted" style="margin:0">
+      Noch keine Preise abgerufen. <a href="/preisquelle">Quelle einrichten</a>
+    </p>
+  {% endif %}
+</div>
+
+{% if stunden %}
+<div class="card">
+  <h2>Nächste Stunden</h2>
+  <p class="muted" style="margin-top:0">
+    Kräftige Balken sind die Stunden, in denen die Automatik einschalten würde.
+    Beschriftet sind nur die jetzige, die günstigste und die teuerste Stunde —
+    die genauen Werte stehen unten in der Tabelle.
+    {% if not auto.enabled %}(Die Automatik ist derzeit aus — die Markierung zeigt, was sie täte.){% endif %}
+  </p>
+
+  {% set hoechst = stunden|map(attribute='ct')|max %}
+  {% set niedrigst = stunden|map(attribute='ct')|min %}
+
+  <div class="scroll" style="padding-bottom:6px">
+    <div style="display:flex; align-items:flex-end; gap:3px; min-width:max-content; height:190px">
+      {% for row in stunden %}
+        {% set hoehe = (12 + (row.ct - niedrigst) / ((hoechst - niedrigst) or 1) * 130)|round|int %}
+        {% set tageswechsel = loop.previtem and loop.previtem.day != row.day %}
+        {% set beschriften = loop.first or row.ct == niedrigst or row.ct == hoechst %}
+        {% if tageswechsel %}
+          <div style="align-self:stretch; display:flex; flex-direction:column; justify-content:flex-end;
+                      border-left:1px dashed var(--line); margin:0 5px 0 2px; padding-left:6px">
+            <div style="font-size:10.5px; color:var(--muted); white-space:nowrap; padding-bottom:2px">{{ row.day }}</div>
+          </div>
+        {% endif %}
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; width:30px"
+             title="{{ row.day }} {{ row.hour }} — {{ '%.2f'|format(row.ct) }} {{ einheit }}{% if row.level_label %} ({{ row.level_label }}){% endif %}">
+          <div style="font-size:10px; font-variant-numeric:tabular-nums; min-height:14px; white-space:nowrap;
+                      color:{{ 'var(--fg)' if beschriften else 'transparent' }}">
+            {{ '%.1f'|format(row.ct) if beschriften else '' }}
+          </div>
+          <div style="width:22px; height:{{ hoehe }}px; border-radius:4px 4px 0 0;
+                      background:var(--accent);
+                      opacity:{{ '1' if row.on else '0.28' }};
+                      {% if row.on %}outline:2px solid var(--accent); outline-offset:-2px;{% endif %}"></div>
+          <div style="font-size:10.5px; color:var(--muted); font-variant-numeric:tabular-nums">
+            {{ row.hour[:2] }}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="muted" style="font-size:13px; display:flex; gap:18px; flex-wrap:wrap; margin-top:6px">
+    <span>günstigste: <strong>{{ '%.2f'|format(niedrigst) }}</strong> {{ einheit }}</span>
+    <span>teuerste: <strong>{{ '%.2f'|format(hoechst) }}</strong> {{ einheit }}</span>
+    <span>Spanne: {{ '%.2f'|format(hoechst - niedrigst) }}</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Als Tabelle</h2>
+  <div class="scroll" style="max-height:340px; overflow-y:auto">
+    <table style="width:100%; border-collapse:collapse; font-size:14px">
+      <thead>
+        <tr style="text-align:left; color:var(--muted); position:sticky; top:0; background:var(--card)">
+          <th style="padding:6px 12px 6px 0">Zeit</th>
+          <th style="padding:6px 12px 6px 0">Preis</th>
+          <th style="padding:6px 12px 6px 0">Stufe</th>
+          <th style="padding:6px 0">Automatik</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in stunden %}
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0; white-space:nowrap">{{ row.day }} {{ row.hour }}</td>
+          <td style="padding:7px 12px 7px 0; font-variant-numeric:tabular-nums">
+            {{ '%.2f'|format(row.ct) }} {{ einheit }}
+          </td>
+          <td style="padding:7px 12px 7px 0; color:var(--muted)">{{ row.level_label }}</td>
+          <td style="padding:7px 0; color:{{ 'var(--ok)' if row.on else 'var(--muted)' }}">
+            {{ 'ein' if row.on else 'aus' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="margin:12px 0 0">
+    Quelle: {{ quelle }} · <a href="/preisquelle">Quelle wechseln</a>
+    · <a href="/automation">Regel ändern</a>
+  </p>
+</div>
+{% endif %}
+{% endblock %}

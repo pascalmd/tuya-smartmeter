@@ -29,6 +29,17 @@ log = logging.getLogger("tuya-smartmeter")
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+
+def _zeitpunkt(ts: float) -> str:
+    """Unix-Zeit lesbar machen — in der Zeitzone des Servers."""
+    try:
+        return dt.datetime.fromtimestamp(float(ts)).strftime("%d.%m. %H:%M")
+    except (TypeError, ValueError, OSError):
+        return "—"
+
+
+TEMPLATES.env.filters["zeitpunkt"] = _zeitpunkt
+
 # Wird beim Bauen gesetzt; im Entwicklungsbetrieb bleibt es bei "dev".
 VERSION = os.environ.get("APP_VERSION", "dev")
 BUILD_DATE = os.environ.get("BUILD_DATE", "unbekannt")
@@ -945,7 +956,7 @@ async def devices_select(request: Request, device_id: str = Form(...), device_na
     except Exception as exc:
         state.ok = False
         state.error = str(exc)
-    return RedirectResponse("/prices", status_code=303)
+    return RedirectResponse("/preisquelle", status_code=303)
 
 
 # ------------------------------------------------------------ Gerätezugang
@@ -1067,10 +1078,57 @@ async def zugang_qr_bild(request: Request):
     return Response(content=puffer.getvalue(), media_type="image/png")
 
 
+# ------------------------------------------------------------- Ansichten
+
+
+@app.get("/preise", response_class=HTMLResponse)
+async def preise_ansicht(request: Request):
+    """Was der Strom kostet — heute und, sobald bekannt, morgen."""
+    if (redirect := guard(request)) is not None:
+        return redirect
+    auto = automation.settings(config.get("automation"))
+    auto["mode_label"] = automation.MODE_LABELS.get(auto["mode"], auto["mode"])
+    reihen = list(state.prices.get("today") or []) + list(state.prices.get("tomorrow") or [])
+    return page(
+        request,
+        "preise.html",
+        stunden=automation.schedule_preview(state.prices, auto, hours=48) if state.prices else [],
+        alle=reihen,
+        aktuell=state.prices.get("current") or {},
+        quelle=prices.SOURCES.get(prices.settings(config.get("price"))["source"], {}).get("label", ""),
+        einheit="ct/kWh" if state.prices.get("currency", "EUR") == "EUR"
+                else f"{state.prices.get('currency')}-Cent/kWh",
+        auto=auto,
+        fehler=state.price_error,
+    )
+
+
+@app.get("/verlauf", response_class=HTMLResponse)
+async def verlauf_ansicht(request: Request, code: str = "", hours: int = 24):
+    """Die aufgezeichneten Messwerte."""
+    if (redirect := guard(request)) is not None:
+        return redirect
+    hours = max(1, min(24 * 90, hours))
+    codes = store.recorded_codes(24 * 90)
+    if code not in codes:
+        # Sinnvoller Einstieg: Leistung, sonst der erste vorhandene Wert
+        code = "cur_power" if "cur_power" in codes else (codes[0] if codes else "")
+    punkte = store.series(code, hours) if code else []
+    return page(
+        request,
+        "verlauf.html",
+        codes=codes, code=code, hours=hours, punkte=punkte,
+        einheiten={m["code"]: m["unit"] for m in state.view.get("metrics", [])},
+        aufzeichnung=int(config.get("history_seconds", 60) or 0),
+        aufbewahrung=store.RETENTION_DAYS,
+        ereignisse=store.recent_events(25),
+    )
+
+
 # --------------------------------------------------------------- Preisquelle
 
 
-@app.get("/prices", response_class=HTMLResponse)
+@app.get("/preisquelle", response_class=HTMLResponse)
 async def prices_page(request: Request, saved: str = ""):
     if (redirect := guard(request)) is not None:
         return redirect
@@ -1086,7 +1144,7 @@ async def prices_page(request: Request, saved: str = ""):
     )
 
 
-@app.post("/prices")
+@app.post("/preisquelle")
 async def prices_save(
     request: Request,
     source: str = Form("awattar_de"),
@@ -1110,7 +1168,7 @@ async def prices_save(
     state.prices_ts = 0.0
     await poll_prices(force=True)
     if state.price_error:
-        return RedirectResponse("/prices?saved=error", status_code=303)
+        return RedirectResponse("/preisquelle?saved=error", status_code=303)
     try:
         await apply_automation()
     except Exception as exc:

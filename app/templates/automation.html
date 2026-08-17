@@ -2,7 +2,7 @@
 {% block title %}Automatik{% endblock %}
 {% block content %}
 <div class="card">
-  <h2>Schritt 4 von 4 — Preisautomatik</h2>
+  <h2>Preisautomatik</h2>
   <p class="muted">
     Die App vergleicht den aktuellen Strompreis mit deiner Regel und schaltet den
     Zähler entsprechend ein oder aus. Sie läuft dauerhaft im Hintergrund — der Browser
@@ -11,7 +11,7 @@
   {% if price_source_label %}
   <p class="muted" style="margin-bottom:0">
     Preise kommen von: <strong>{{ price_source_label }}</strong>
-    · <a href="/prices">ändern</a>
+    · <a href="/preisquelle">ändern</a>
   </p>
   {% endif %}
 </div>

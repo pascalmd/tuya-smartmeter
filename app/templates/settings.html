@@ -25,18 +25,32 @@
 {% if error %}<div class="msg err">{{ error }}</div>{% endif %}
 
 <div class="card">
-  <h2>Bereiche</h2>
-  <p style="display:flex; gap:10px; flex-wrap:wrap; margin:0">
-    <a class="btn secondary" href="/devices">Gerät wechseln</a>
-    <a class="btn secondary" href="/zugang">Gerätezugang</a>
-    <a class="btn secondary" href="/prices">Preisquelle</a>
-    <a class="btn secondary" href="/automation">Automatik</a>
+  <h2>Gerät und Zugang</h2>
+  <p class="muted">
+    Welches Gerät geschaltet wird und auf welchem Weg die App es erreicht —
+    lokal, per QR-Anmeldung oder über ein Entwicklerprojekt.
   </p>
+  <p style="margin:0; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <strong>{{ cfg.get('device_name') or 'noch kein Gerät gewählt' }}</strong>
+    <a class="btn" href="/zugang">Gerät und Zugang einrichten</a>
+  </p>
+</div>
+
+<div class="card">
+  <h2>Preisquelle</h2>
+  <p class="muted" style="margin-top:0">
+    Woher die Strompreise kommen — Börsendaten ohne Konto oder Tibber.
+  </p>
+  <p style="margin:0"><a class="btn secondary" href="/preisquelle">Preisquelle einrichten</a></p>
 </div>
 
 <form method="post">
   <div class="card">
-    <h2>Tuya-Cloud</h2>
+    <h2>Tuya-Cloud (Entwicklerprojekt)</h2>
+    <p class="muted" style="margin-top:0">
+      Nur nötig, wenn du den dritten Zugangsweg nutzt. Wer sich per QR-Code
+      anmeldet, kann das hier leer lassen.
+    </p>
     <label for="client_id">Access ID</label>
     <input type="text" id="client_id" name="client_id" value="{{ cfg.tuya.get('client_id', '') }}" required spellcheck="false">
 
@@ -152,17 +166,38 @@
 </div>
 
 <div class="card">
-  <h2>API-Token</h2>
+  <h2>Schnittstelle für andere Programme</h2>
+
+  <div class="msg ok" style="font-size:14px">
+    <strong>Für den normalen Betrieb brauchst du das hier nicht.</strong>
+    Wer den Zähler über diese Oberfläche bedient, kann den Abschnitt überspringen.
+  </div>
+
   <p class="muted">
-    Für Zugriffe von außen (ioBroker, Zabbix, Skripte) — als Kopfzeile
-    <code>X-API-Token</code> oder als <code>?token=…</code>.
+    Der Schlüssel unten gehört <strong>zu dieser App</strong> — er hat nichts mit
+    Tuya oder Tibber zu tun, wird dort nirgends eingetragen und ist sonst nirgendwo
+    gültig. Es ist einfach ein Passwort, mit dem andere Programme bei dieser App
+    anklopfen dürfen.
+  </p>
+  <p class="muted">
+    Gebraucht wird er nur, wenn die Daten <strong>weiterverwendet</strong> werden
+    sollen: Messwerte nach ioBroker, Home Assistant oder Grafana holen, eine
+    Überwachung wie Zabbix anbinden, oder den Zähler aus einem eigenen Skript
+    heraus schalten. Ohne Schlüssel weist die App solche Anfragen ab — sonst
+    könnte jeder im Netz mitlesen und schalten.
   </p>
   <input type="text" value="{{ api_token }}" readonly onclick="this.select()">
   <form method="post" action="/settings/rotate-token" style="margin-top:12px">
-    <button class="secondary" type="submit">Neuen Token erzeugen</button>
+    <button class="secondary" type="submit">Neuen Schlüssel erzeugen</button>
+    <div class="hint" style="margin-top:6px">
+      Danach müssen alle Programme, die ihn verwenden, den neuen bekommen.
+    </div>
   </form>
   <p class="muted" style="margin-bottom:0">
-    Beispiel:<br>
+    Die Adresse <code>/healthz</code> antwortet übrigens <strong>ohne</strong>
+    Schlüssel — sie verrät nur, ob der Dienst läuft, und eignet sich damit für
+    eine Überwachung.<br><br>
+    Beispiele:<br>
     <code>curl -H "X-API-Token: …" http://&lt;server&gt;:8099/api/state</code><br>
     <code>curl -X POST -H "X-API-Token: …" -H "Content-Type: application/json" \<br>
     &nbsp;&nbsp;-d '{"code":"switch","value":true}' http://&lt;server&gt;:8099/api/switch</code>
