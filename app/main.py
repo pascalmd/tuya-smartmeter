@@ -909,6 +909,28 @@ def api_calls_per_month(interval_seconds: int, geraetezahl: int | None = None) -
     return int(pro_tag * 30)
 
 
+def _cloud_rechte_weg() -> bool:
+    """Ob der Cloud-Zugang als Ganzes keine Rechte mehr hat.
+
+    Ohne eingetragenes Ablaufdatum bleibt nur der Rueckschluss aus Fehlern --
+    aber vorsichtig: Code 1106 sagt lediglich "keine Berechtigung" und steht
+    genauso an einem Geraet, das nicht zum Projekt gehoert oder das es gar
+    nicht gibt. Daraus auf einen abgelaufenen Testzeitraum zu schliessen, waere
+    bei mehreren Geraeten regelmaessig falsch.
+
+    Deshalb nur, wenn wirklich nichts mehr geht: Kein Geraet liest ueber die
+    Cloud, und jedes, das ueberhaupt einen Fehler meldet, meldet einen
+    Rechtefehler.
+    """
+    zustaende = [st for st in _states.values() if st.device_id]
+    if any(st.kanal == "cloud" and st.ok for st in zustaende):
+        return False        # ueber die Cloud kommen Daten -- die Rechte stehen
+    mit_fehler = [st for st in zustaende if st.error]
+    if not mit_fehler:
+        return False
+    return all(("1106" in st.error or "1114" in st.error) for st in mit_fehler)
+
+
 def trial_status() -> dict[str, Any]:
     """Erinnerung an den ablaufenden Tuya-Testzeitraum.
 
@@ -917,9 +939,6 @@ def trial_status() -> dict[str, Any]:
     Zugangsdaten zuletzt bestaetigt wurden - ungenau, aber besser als eine Frist,
     die stillschweigend ablaeuft. Die API verraet das Datum nicht.
     """
-    fehler = " ".join(st.error for st in _states.values() if st.error)
-    abgelaufen_laut_fehler = bool("1106" in fehler or "1114" in fehler)
-
     datum = (config.get("trial_expires") or "").strip()
     if datum:
         try:
@@ -927,6 +946,11 @@ def trial_status() -> dict[str, Any]:
         except ValueError:
             ablauf = None
         if ablauf:
+            # Steht ein Ablaufdatum fest, entscheidet es allein. Ein Fehlercode
+            # darf es nicht ueberstimmen: 1106 heisst nur "keine Berechtigung"
+            # und trifft genauso auf ein Geraet zu, das gar nicht zum Projekt
+            # gehoert. Sonst behauptet die App einen abgelaufenen Testzeitraum,
+            # waehrend noch Wochen davon uebrig sind.
             rest = (ablauf - dt.date.today()).days
             return {
                 "known": True,
@@ -934,8 +958,10 @@ def trial_status() -> dict[str, Any]:
                 "expires": datum,
                 "days_left": rest,
                 "warn": rest <= TRIAL_VORWARNUNG_TAGE,
-                "expired": rest < 0 or abgelaufen_laut_fehler,
+                "expired": rest < 0,
             }
+
+    abgelaufen_laut_fehler = _cloud_rechte_weg()
 
     seit = float(config.get("tuya_setup_ts") or 0)
     if not seit:

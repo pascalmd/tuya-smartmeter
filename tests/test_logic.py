@@ -393,6 +393,64 @@ class Protokollversionen(unittest.TestCase):
         self.assertIn("antwortet nicht", str(fehler.exception))
 
 
+class Testzeitraum(unittest.TestCase):
+    """Die Warnung zum Tuya-Testzeitraum darf nicht falsch anschlagen."""
+
+    def setUp(self) -> None:
+        from app import geraete, main
+        from app.config import config
+
+        self.main = main
+        self.config = config
+        main._states.clear()
+        geraete.speichern([{"id": "zaehler", "name": "Zaehler"}])
+        config.set("trial_expires", "")
+        config.set("tuya_setup_ts", time.time())
+
+    def test_eingetragenes_datum_schlaegt_fehlercodes(self) -> None:
+        """Anlass: Ein zweites, gar nicht vorhandenes Geraet meldete 1106 --
+        und die App behauptete daraufhin, der Testzeitraum sei abgelaufen,
+        obwohl das eingetragene Datum noch Wochen entfernt lag."""
+        in_30_tagen = (dt.date.today() + dt.timedelta(days=30)).isoformat()
+        self.config.set("trial_expires", in_30_tagen)
+
+        st = self.main.zustand("zaehler")
+        st.error = "Keine Berechtigung (Code 1106)"
+
+        status = self.main.trial_status()
+        self.assertFalse(status["expired"])
+        self.assertEqual(status["days_left"], 30)
+
+    def test_abgelaufenes_datum_bleibt_abgelaufen(self) -> None:
+        gestern = (dt.date.today() - dt.timedelta(days=1)).isoformat()
+        self.config.set("trial_expires", gestern)
+        self.assertTrue(self.main.trial_status()["expired"])
+
+    def test_ohne_datum_zaehlt_ein_einzelner_rechtefehler_nicht(self) -> None:
+        """Ein Geraet mit Rechtefehler, ein anderes liest ueber die Cloud."""
+        from app import geraete
+
+        geraete.speichern([{"id": "zaehler", "name": "Zaehler"},
+                           {"id": "gibtsnicht", "name": "Fremd"}])
+        laeuft = self.main.zustand("zaehler")
+        laeuft.kanal, laeuft.ok = "cloud", True
+        kaputt = self.main.zustand("gibtsnicht")
+        kaputt.error = "Keine Berechtigung (Code 1106)"
+
+        self.assertFalse(self.main.trial_status()["expired"])
+
+    def test_ohne_datum_und_ohne_jeden_zugriff_gilt_er_als_abgelaufen(self) -> None:
+        st = self.main.zustand("zaehler")
+        st.error = "Tuya-API: [1114] token expired"
+        st.ok = False
+        self.assertTrue(self.main.trial_status()["expired"])
+
+    def test_gewoehnlicher_fehler_gilt_nicht_als_ablauf(self) -> None:
+        st = self.main.zustand("zaehler")
+        st.error = "Geraet unter 192.168.1.50 nicht erreichbar"
+        self.assertFalse(self.main.trial_status()["expired"])
+
+
 class Geraetebestand(unittest.TestCase):
     """Mehrere Geraete nebeneinander, jedes mit eigener Regel."""
 
