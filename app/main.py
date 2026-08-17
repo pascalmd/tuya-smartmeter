@@ -211,93 +211,85 @@ def reset_local() -> None:
 
 
 async def einrichten_lokal(ip: str) -> tuple[bool, str]:
-    """Local Key und Datenpunkt-Zuordnung aus der Cloud holen und lokal pruefen.
+    """Lokalen Zugang einrichten: Schluessel und Datenpunkt-Zuordnung beschaffen.
 
-    Das ist der einzige Moment, in dem der lokale Weg die Cloud braucht.
-    Danach laeuft er eigenstaendig — auch wenn der Testzeitraum ablaeuft.
+    Der Schluessel kommt bevorzugt aus der QR-Anmeldung — die ist unbefristet.
+    Nur wenn es die nicht gibt, wird das Entwicklerprojekt bemueht. Damit laesst
+    sich der lokale Weg einrichten, ohne je ein Projekt anzulegen.
     """
     device_id = config.get("device_id", "")
     if not device_id:
         return False, "Kein Geraet ausgewaehlt"
+    ip = ip.strip()
+    if not ip:
+        return False, "Keine Adresse angegeben"
 
-    try:
-        api = client()
-        key = await api.local_key(device_id)
-        if not key:
-            return False, "Die Cloud gibt keinen lokalen Schluessel heraus"
-        spec = await api.device_spec_with_dp(device_id)
-    except Exception as exc:
-        return False, f"Cloud-Abfrage fehlgeschlagen: {exc}"
-
+    key = ""
+    benannt: dict[str, Any] = {}
     dp_map: dict[str, str] = {}
-    for bereich in ("status", "functions"):
-        for eintrag in spec.get(bereich, []):
-            if eintrag.get("dp_id") is not None:
-                dp_map[str(eintrag["dp_id"])] = eintrag["code"]
+    quelle = ""
 
-    # Das Datenmodell kennt mehr als die Spezifikation - bei diesem Zaehler etwa
-    # den Zaehlerstand, den die Cloud im Status gar nicht mitliefert.
+    # 1) QR-Anmeldung — ohne Frist, deshalb zuerst
+    sd = sharing_device()
+    if sd:
+        try:
+            geraet = await asyncio.to_thread(sd._aktualisieren)
+            key = getattr(geraet, "local_key", "") or ""
+            benannt = dict(geraet.status or {})
+            quelle = "QR-Anmeldung"
+        except Exception as exc:
+            log.info("QR-Anmeldung liefert keinen Schluessel (%s)", exc)
+
+    # 2) Entwicklerprojekt als Rueckfall
+    if not key:
+        try:
+            api = client()
+            key = await api.local_key(device_id)
+            spec = await api.device_spec_with_dp(device_id)
+            for bereich in ("status", "functions"):
+                for eintrag in spec.get(bereich, []):
+                    if eintrag.get("dp_id") is not None:
+                        dp_map[str(eintrag["dp_id"])] = eintrag["code"]
+            try:
+                dp_map.update(await api.device_model(device_id))
+            except Exception:
+                pass
+            quelle = quelle or "Entwicklerprojekt"
+        except Exception as exc:
+            return False, f"Kein Schluessel zu bekommen: {exc}"
+
+    if not key:
+        return False, "Es wurde kein lokaler Schluessel herausgegeben"
+
+    # Verbindung aufbauen und dabei die Protokollversion ermitteln
+    pruef = local.LocalDevice(device_id, ip, key, dp_map or dict(local.STANDARD_DP_MAP))
     try:
-        modell = await api.device_model(device_id)
-        dp_map.update(modell)
-    except Exception as exc:
-        log.info("Datenmodell nicht abrufbar (%s) - nutze die Spezifikation", exc)
-
-    # Was weiterhin fehlt, aus der verbreiteten Standardbelegung ergaenzen.
-    for dp, code in local.STANDARD_DP_MAP.items():
-        dp_map.setdefault(dp, code)
-
-    if not dp_map:
-        return False, "Keine Datenpunkt-Zuordnung erhalten"
-
-    pruef = local.LocalDevice(device_id, ip.strip(), key, dp_map)
-    try:
-        werte = await pruef.status()
+        roh = await asyncio.to_thread(pruef._status_roh)
     except Exception as exc:
         return False, f"Geraet unter {ip} nicht erreichbar: {exc}"
 
+    # Zuordnung: liegt keine offizielle vor, aus dem Wertevergleich gewinnen
+    if not dp_map:
+        if benannt:
+            dp_map = local.dp_map_aus_vergleich(benannt, roh)
+        for dp, code in local.STANDARD_DP_MAP.items():
+            dp_map.setdefault(dp, code)
+
     cfg = dict(config.get("local") or {})
     cfg.update({
-        "enabled": True, "ip": ip.strip(), "key": key,
+        "enabled": True, "ip": ip, "key": key,
         "dp_map": dp_map, "version": pruef.version or 0,
     })
     config.set("local", cfg)
     config.save()
     reset_local()
-    store.log_event("info", f"Lokaler Zugang eingerichtet ({ip}, Protokoll {pruef.version})")
-    return True, f"Verbunden — {len(werte)} Datenpunkte, Protokoll {pruef.version}"
-
-
-_sharing: sharing.SharingDevice | None = None
-
-
-def sharing_device() -> sharing.SharingDevice | None:
-    """Zugang per QR-Anmeldung, sofern eingerichtet."""
-    global _sharing
-    cfg = config.get("sharing") or {}
-    if not (cfg.get("enabled") and cfg.get("token") and cfg.get("user_code")):
-        return None
-    if _sharing is None:
-        def token_ablegen(neu):
-            aktuell = dict(config.get("sharing") or {})
-            aktuell["token"] = neu
-            config.set("sharing", aktuell)
-            config.save()
-
-        _sharing = sharing.SharingDevice(
-            token_info=cfg["token"],
-            user_code=cfg["user_code"],
-            device_id=config.get("device_id", ""),
-            client_id=cfg.get("client_id", ""),
-            schema=cfg.get("schema", ""),
-            token_ablegen=token_ablegen,
-        )
-    return _sharing
-
-
-def reset_sharing() -> None:
-    global _sharing
-    _sharing = None
+    store.log_event(
+        "info", f"Lokaler Zugang eingerichtet ({ip}, Protokoll {pruef.version}, Schluessel via {quelle})"
+    )
+    return True, (
+        f"Verbunden — {len(roh)} Datenpunkte, Protokoll {pruef.version}, "
+        f"Schluessel über {quelle}"
+    )
 
 
 def tibber_client() -> TibberClient:

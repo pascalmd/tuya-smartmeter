@@ -112,10 +112,24 @@ class SharingDevice:
         if Manager is None:
             raise SharingError("Das Paket tuya-device-sharing-sdk fehlt")
         self.device_id = device_id
+
+        # Reihenfolge laut SDK: client_id, user_code, terminal_id, end_point,
+        # token_response, listener. Terminal und Endpunkt stehen in der Antwort
+        # der Anmeldung — sie sind je Anmeldung verschieden und gehoeren zum
+        # Token, nicht zur Anwendung.
+        terminal_id = token_info.get("terminal_id", "")
+        end_point = token_info.get("endpoint", "")
+        if not (terminal_id and end_point):
+            raise SharingError(
+                "Die gespeicherten Zugangsdaten sind unvollstaendig "
+                "(terminal_id oder endpoint fehlt) — bitte neu anmelden"
+            )
+
         self._manager = Manager(
             client_id or STANDARD_CLIENT_ID,
             user_code.strip(),
-            schema or STANDARD_SCHEMA,
+            terminal_id,
+            end_point,
             token_info,
             _TokenSpeicher(token_ablegen) if token_ablegen else None,
         )
