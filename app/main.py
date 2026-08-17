@@ -232,6 +232,57 @@ def reset_local() -> None:
     _local = None
 
 
+_sharing: sharing.SharingDevice | None = None
+
+
+def sharing_device() -> sharing.SharingDevice | None:
+    """Zugang ueber die QR-Anmeldung, sofern eingerichtet.
+
+    Der zweite der drei Wege: kein Entwicklerprojekt, keine Frist. Er liefert
+    ausserdem den lokalen Schluessel fuer Weg 1.
+
+    Das SDK erneuert das Token selbsttaetig; damit die Erneuerung einen Neustart
+    ueberlebt, wird sie ueber `token_ablegen` in die Konfiguration
+    zurueckgeschrieben.
+    """
+    global _sharing
+    cfg = config.get("sharing") or {}
+    if not (cfg.get("enabled") and cfg.get("user_code") and cfg.get("token")):
+        return None
+    device_id = config.get("device_id", "")
+    if not device_id:
+        return None
+    if _sharing is not None and _sharing.device_id == device_id:
+        return _sharing
+
+    def token_ablegen(neu: dict[str, Any]) -> None:
+        aktuell = dict(config.get("sharing") or {})
+        aktuell["token"] = neu
+        config.set("sharing", aktuell)
+        config.save()
+
+    try:
+        _sharing = sharing.SharingDevice(
+            token_info=cfg.get("token") or {},
+            user_code=cfg.get("user_code", ""),
+            device_id=device_id,
+            client_id=cfg.get("client_id", ""),
+            schema=cfg.get("schema", ""),
+            token_ablegen=token_ablegen,
+        )
+    except Exception as exc:
+        # Kein Grund, den ganzen Abruf scheitern zu lassen — es gibt zwei
+        # weitere Wege. Nur vermerken, damit der Grund nachvollziehbar ist.
+        log.warning("QR-Zugang nicht nutzbar: %s", exc)
+        _sharing = None
+    return _sharing
+
+
+def reset_sharing() -> None:
+    global _sharing
+    _sharing = None
+
+
 async def einrichten_lokal(ip: str) -> tuple[bool, str]:
     """Lokalen Zugang einrichten: Schluessel und Datenpunkt-Zuordnung beschaffen.
 

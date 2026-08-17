@@ -539,5 +539,59 @@ class Waehrung(unittest.TestCase):
             self.assertEqual(einheit, erwartet)
 
 
+class TestAufrufbarkeit(unittest.TestCase):
+    """Jeder Zugangsweg braucht seine Fabrikfunktion — sonst faellt die Kette.
+
+    Anlass: `sharing_device()` wurde an vier Stellen aufgerufen, war aber nicht
+    definiert. Aufgefallen ist das nicht, weil der lokale Weg meist zuerst
+    greift und die uebrigen Aufrufe nur im Fehlerfall erreicht werden — genau
+    dann, wenn man den Rueckfall am dringendsten braucht.
+    """
+
+    def test_fabrikfunktionen_der_drei_wege_existieren(self) -> None:
+        from app import main
+
+        for name in ("client", "local_device", "sharing_device",
+                     "reset_client", "reset_local", "reset_sharing"):
+            self.assertTrue(callable(getattr(main, name, None)),
+                            f"{name}() fehlt in main.py")
+
+    def test_qr_zugang_ohne_einrichtung_liefert_none(self) -> None:
+        """Ohne Anmeldung darf der Weg leer bleiben, aber nicht werfen."""
+        from app import main
+
+        self.assertIsNone(main.sharing_device())
+
+    def test_alle_aufgerufenen_namen_sind_definiert(self) -> None:
+        """Statische Gegenprobe ueber das ganze Paket."""
+        import ast
+        import builtins
+
+        paket = Path(__file__).resolve().parents[1] / "app"
+        for datei in sorted(paket.glob("*.py")):
+            baum = ast.parse(datei.read_text(encoding="utf-8"))
+            definiert = set(dir(builtins))
+            for knoten in ast.walk(baum):
+                if isinstance(knoten, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    definiert.add(knoten.name)
+                elif isinstance(knoten, ast.Name) and isinstance(knoten.ctx, ast.Store):
+                    definiert.add(knoten.id)
+                elif isinstance(knoten, (ast.Import, ast.ImportFrom)):
+                    definiert.update((a.asname or a.name).split(".")[0] for a in knoten.names)
+                elif isinstance(knoten, ast.arg):
+                    definiert.add(knoten.arg)
+                elif isinstance(knoten, ast.ExceptHandler) and knoten.name:
+                    definiert.add(knoten.name)
+                elif isinstance(knoten, ast.comprehension) and isinstance(knoten.target, ast.Name):
+                    definiert.add(knoten.target.id)
+
+            aufgerufen = {
+                k.func.id for k in ast.walk(baum)
+                if isinstance(k, ast.Call) and isinstance(k.func, ast.Name)
+            }
+            fehlend = sorted(aufgerufen - definiert)
+            self.assertEqual(fehlend, [], f"{datei.name}: nicht definiert: {fehlend}")
+
+
 if __name__ == "__main__":
     unittest.main()
