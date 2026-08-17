@@ -42,7 +42,7 @@ Rechne mit etwa 30 Minuten, davon 20 für die Tuya-Anmeldung.
 
 | Was | Wozu |
 |-----|------|
-| TrueNAS SCALE 24.10 oder neuer | ältere Versionen haben das neue Apps-System (Docker) noch nicht. Getestet mit 25.10 „Goldeneye" |
+| TrueNAS SCALE 24.10 oder neuer | ältere Versionen haben das neue Apps-System (Docker) noch nicht. Getestet mit 25.10 „Goldeye" |
 | Tuya-/Smart-Life-Konto | das Konto, in dem der Zähler schon eingerichtet ist |
 | Preisquelle | Börsenpreise gehen ohne Konto (aWATTar, Energy-Charts). Für den echten Endkundenpreis: Tibber-Konto mit aktivem Vertrag |
 | ~15 Minuten Geduld bei Tuya | die Entwickler-Anmeldung ist etwas sperrig |
@@ -139,7 +139,7 @@ Der Token darf nur lesen — schalten kann damit niemand.
 
 In TrueNAS: **Apps**, dort die Möglichkeit, eine eigene Anwendung anzulegen. Sie
 heißt je nach Version **Custom App**, **Add Custom App** oder versteckt sich hinter
-**Discover Apps** — in neueren Fassungen (25.10 „Goldeneye" und später) sitzt der
+**Discover Apps** — in neueren Fassungen (25.10 „Goldeye" und später) sitzt der
 Knopf oben rechts. Such nach „Custom".
 
 Es gibt dort zwei Wege. Der YAML-Weg ist weniger Klickerei, der Formular-Weg
