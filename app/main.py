@@ -769,7 +769,9 @@ async def durchlauf(st: DeviceState, interval: int) -> None:
     except Exception as exc:
         st.ok = False
         if isinstance(exc, TuyaError):
-            st.error = tuya_error_hint(exc, config.tuya.get("client_id", ""), "")
+            st.error = tuya_error_hint(
+                exc, config.tuya.get("client_id", ""), "", geraet=st.label()
+            )
         else:
             st.error = str(exc)
         st.failures += 1
@@ -979,7 +981,8 @@ def trial_status() -> dict[str, Any]:
     }
 
 
-def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str) -> str:
+def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str,
+                    geraet: str = "") -> str:
     """Aus dem Tuya-Fehlercode eine Meldung machen, mit der man etwas anfangen kann.
 
     Die Codes sind aussagekraeftig, aber Tuyas Klartext ist es nicht - "sign
@@ -1017,10 +1020,38 @@ def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str) -> str:
         )
 
     if code in (1106, 1114):  # no permissions
+        # Den Testzeitraum nur erwaehnen, wenn er ueberhaupt in Frage kommt.
+        # Steht ein Ablaufdatum fest und liegt es noch fern, schickt dieser Satz
+        # nur auf eine falsche Faehrte -- der Fehler kommt dann von woanders.
+        trial = trial_status()
+        frist_plausibel = not (
+            trial.get("exact") and trial.get("days_left", 0) > TRIAL_VORWARNUNG_TAGE
+        )
+        frist = (
+            " Oder der Testzeitraum ist abgelaufen — dann dort unter "
+            "Service → Extend Trial verlaengern."
+            if frist_plausibel else ""
+        )
+        wen = f" fuer »{geraet}«" if geraet else ""
+
+        if code == 1106:
+            # Haeufigster Fall zuerst, und der ist geraetebezogen: Das Geraet
+            # haengt nicht am Projekt. Frueher stand hier zuerst der
+            # Projektfehler -- und wer ein Geraet falsch eingetragen hatte,
+            # suchte den Fehler in den Projekteinstellungen.
+            return (
+                f"Keine Berechtigung{wen} (Code 1106). Meist gehoert das Geraet nicht "
+                "zum Projekt: auf iot.tuya.com unter Devices → Link App Account pruefen, "
+                "ob das Smart-Life-Konto verknuepft ist und das Geraet dort auftaucht. "
+                "Sonst fehlt im Projekt eine der APIs (IoT Core, Authorization, "
+                f"Smart Home Scene Linkage).{frist}"
+            )
+
         return (
-            f"Keine Berechtigung (Code {code}). Entweder fehlt im Tuya-Projekt eine der "
-            "APIs (IoT Core, Authorization, Smart Home Scene Linkage), oder der "
-            "Testzeitraum ist abgelaufen — dann unter Service → Extend Trial verlaengern."
+            "Keine Berechtigung (Code 1114). Im Tuya-Projekt auf iot.tuya.com fehlt "
+            "eine der APIs (IoT Core, Authorization, Smart Home Scene Linkage), oder "
+            "der Testzeitraum ist abgelaufen — dann dort unter Service → Extend Trial "
+            "verlaengern."
         )
 
     return (

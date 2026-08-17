@@ -451,6 +451,47 @@ class Testzeitraum(unittest.TestCase):
         self.assertFalse(self.main.trial_status()["expired"])
 
 
+class Fehlermeldungen(unittest.TestCase):
+    """Was bei einem Rechtefehler dasteht, muss zur Lage passen."""
+
+    def setUp(self) -> None:
+        from app import geraete, main
+        from app.config import config
+        from app.tuya import TuyaError
+
+        self.main = main
+        self.config = config
+        self.fehler = TuyaError(1106, "no permissions", "/v1.0/devices/x")
+        main._states.clear()
+        geraete.speichern([{"id": "a", "name": "A"}])
+
+    def test_ferne_frist_wird_nicht_erwaehnt(self) -> None:
+        """Sonst schickt die Meldung auf eine falsche Faehrte."""
+        self.config.set("trial_expires",
+                        (dt.date.today() + dt.timedelta(days=30)).isoformat())
+        text = self.main.tuya_error_hint(self.fehler, "x" * 20, "")
+        self.assertNotIn("Extend Trial", text)
+
+    def test_nahe_frist_wird_erwaehnt(self) -> None:
+        self.config.set("trial_expires",
+                        (dt.date.today() + dt.timedelta(days=3)).isoformat())
+        self.assertIn("Extend Trial", self.main.tuya_error_hint(self.fehler, "x" * 20, ""))
+
+    def test_ohne_datum_wird_erwaehnt(self) -> None:
+        self.config.set("trial_expires", "")
+        self.assertIn("Extend Trial", self.main.tuya_error_hint(self.fehler, "x" * 20, ""))
+
+    def test_meldung_nennt_das_geraet_und_die_adresse(self) -> None:
+        text = self.main.tuya_error_hint(self.fehler, "x" * 20, "", geraet="Steckdose")
+        self.assertIn("Steckdose", text)
+        self.assertIn("iot.tuya.com", text)
+
+    def test_haeufigste_ursache_steht_vorn(self) -> None:
+        """Bei 1106 ist das die fehlende Verknuepfung des Geraets."""
+        text = self.main.tuya_error_hint(self.fehler, "x" * 20, "")
+        self.assertLess(text.index("Link App Account"), text.index("IoT Core"))
+
+
 class Geraetebestand(unittest.TestCase):
     """Mehrere Geraete nebeneinander, jedes mit eigener Regel."""
 
