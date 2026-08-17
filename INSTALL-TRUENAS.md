@@ -261,7 +261,8 @@ Die App meldet sich nach etwa einer halben Minute unter:
 http://<IP-deines-TrueNAS>:8099
 ```
 
-Dann führt sie dich durch vier Schritte:
+Dann führt sie dich durch vier Schritte (weitere Geräte kommen später dazu,
+siehe Teil 6):
 
 1. **Passwort festlegen** — damit meldest du dich künftig hier an.
    Dazu Access ID und Access Secret von oben eintragen, Rechenzentrum
@@ -307,6 +308,41 @@ eine Einstellung prüfen, bevor sie scharf geschaltet wird.
 
 ---
 
+## Teil 6 — Mehrere Geräte
+
+Die App steuert beliebig viele Tuya-Geräte nebeneinander: einen Zähler, eine
+Schaltsteckdose, beides zusammen. Neue Geräte kommen unter
+**Einstellungen → Geräte** dazu — die Liste stammt aus deinem Tuya-Konto, ein
+Klick auf *Übernehmen* genügt. Steht ein Gerät nicht in der Liste, kannst du es
+unten auf derselben Seite über seine Kennung von Hand eintragen.
+
+**Es gibt genau eine Schaltregel — für alle Geräte.** Das ist Absicht: Der
+Strompreis hängt nicht am Gerät. Ist Strom billig, ist er es für jedes.
+
+Je Gerät legst du in der Geräteliste nur zwei Dinge fest:
+
+| Häkchen | Bedeutung |
+|---------|-----------|
+| **folgt der Regel** | Das Gerät wird von der Automatik geschaltet. Ohne Häkchen bleibt es unberührt und wird nur auf der Übersicht von Hand ein- und ausgeschaltet |
+| **abfragen** | Aus heißt: Das Gerät ruht. Es wird nicht abgefragt und erscheint nicht als Störung. Praktisch für eine Steckdose, die erst noch kommt oder über den Winter abgeklemmt ist — Name, Einstellungen und Verlauf bleiben erhalten |
+
+Dazu kommt **Messwerte aufzeichnen**: Eine reine Schaltsteckdose ohne Messung
+braucht das nicht, ein Zähler schon.
+
+Welchen Ausgang ein Gerät schaltet, erkennt die App selbst — Zähler nennen ihn
+meist `switch`, Steckdosen `switch_1`. Auf der **Übersicht** stehen alle Geräte
+mit ihrem Zustand und je einem Ein/Aus-Knopf untereinander; **Verlauf** und
+**Preise** zeigen oben eine Leiste zum Umschalten zwischen den Geräten.
+
+> **Wenn du das Entwicklerprojekt benutzt (Weg C):** Jedes Gerät verbraucht sein
+> eigenes Abfragekontingent. Mit einem Gerät liegt der Standardtakt bei rund 60 %
+> des kostenlosen Monatskontingents, mit zwei Geräten wäre er darüber. Dann unter
+> *Einstellungen* das Abfrageintervall erhöhen (300 Sekunden reichen für zwei
+> Geräte) — oder besser den lokalen Weg oder die QR-Anmeldung nutzen, die kosten
+> gar nichts.
+
+---
+
 ## Wenn etwas nicht klappt
 
 | Symptom | Ursache und Abhilfe |
@@ -321,6 +357,9 @@ eine Einstellung prüfen, bevor sie scharf geschaltet wird.
 | Preise fehlen, Rest läuft | Vertrag ohne stündliche Preise, oder falsches Zuhause ausgewählt |
 | Seite nicht erreichbar | Port in TrueNAS geprüft? Manche Ports sind belegt — dann Node Port ändern |
 | Nach Neustart alles weg | Der `/config`-Ordner war nicht dauerhaft eingebunden |
+| Steckdose lässt sich nicht schalten | Meldet sie einen Ausgang? Auf der Übersicht muss ein Schalter erscheinen. Fehlt er, ist das Gerät vermutlich gar nicht schaltbar (reiner Sensor) |
+| Ein Gerät ist dauernd „offline" | Wenn es noch nicht angeschlossen ist: in der Geräteliste **abfragen** ausschalten, dann ruht es, statt als Störung zu erscheinen |
+| Healthcheck meldet „degraded" | Ein Gerät antwortet nicht. Welches, steht in der Antwort unter `degraded_devices` |
 
 Detailfehler stehen im Container-Log: **Apps → tuya-smartmeter → Logs**.
 
