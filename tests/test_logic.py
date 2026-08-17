@@ -7,12 +7,20 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
-import time
+import os
 import sys
+import tempfile
+import time
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+# Muss vor dem Import von `app` stehen: Sonst legt die Konfiguration ihre Datei
+# unter /config an — im Container richtig, beim Testen nicht schreibbar. Die
+# Ereignis-Datenbank landet ebenfalls dort, deshalb reicht es nicht, nur die
+# Konfiguration umzubiegen.
+os.environ.setdefault("CONFIG_DIR", tempfile.mkdtemp(prefix="tuya-test-"))
 
 from app import automation, prices  # noqa: E402
 from app.tibber import cheapest_hours, upcoming  # noqa: E402
@@ -238,8 +246,6 @@ class Fremdschaltung(unittest.TestCase):
     """Erkennung von Schaltvorgaengen, die nicht aus dieser App kamen."""
 
     def setUp(self) -> None:
-        import os
-        os.environ.setdefault("CONFIG_DIR", "/tmp/tuya-test-config")
         from app import main
         self.main = main
         self.state = main.state

@@ -60,6 +60,22 @@ def init() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events (ts)")
 
 
+def _mit_tabellen(aktion):
+    """Aktion ausfuehren und die Tabellen anlegen, falls sie fehlen.
+
+    Im Betrieb legt sie der Start an. Fehlen sie doch — weil die Datei geloescht
+    wurde oder der Aufruf von woanders kommt —, ist es besser, sie still
+    nachzuziehen, als jeden Schreibvorgang scheitern zu lassen.
+    """
+    try:
+        return aktion()
+    except sqlite3.OperationalError as exc:
+        if "no such table" not in str(exc):
+            raise
+        init()
+        return aktion()
+
+
 def record(metrics: list[dict[str, Any]], phases: list[dict[str, Any]]) -> None:
     """Einen Poll-Durchlauf ablegen."""
     ts = int(time.time())
@@ -77,16 +93,23 @@ def record(metrics: list[dict[str, Any]], phases: list[dict[str, Any]]) -> None:
 
     if not rows:
         return
-    with _lock, _connect() as conn:
-        conn.executemany("INSERT INTO samples (ts, code, value) VALUES (?, ?, ?)", rows)
+
+    def schreiben():
+        with _lock, _connect() as conn:
+            conn.executemany("INSERT INTO samples (ts, code, value) VALUES (?, ?, ?)", rows)
+
+    _mit_tabellen(schreiben)
 
 
 def log_event(kind: str, message: str) -> None:
-    with _lock, _connect() as conn:
-        conn.execute(
-            "INSERT INTO events (ts, kind, message) VALUES (?, ?, ?)",
-            (int(time.time()), kind, message[:500]),
-        )
+    def schreiben():
+        with _lock, _connect() as conn:
+            conn.execute(
+                "INSERT INTO events (ts, kind, message) VALUES (?, ?, ?)",
+                (int(time.time()), kind, message[:500]),
+            )
+
+    _mit_tabellen(schreiben)
 
 
 def series(code: str, hours: int = 24, max_points: int = 500) -> list[dict[str, float]]:
