@@ -17,6 +17,17 @@ BUILD_HOST="${BUILD_HOST:-docker02}"     # dort sind buildx und QEMU eingerichte
 IMAGE="ghcr.io/pascalmd/tuya-smartmeter"
 BW_ITEM="GitHub PAT packages (classic)"  # classic PAT, GHCR nimmt keine fine-grained
 
+# Die Tests brauchen die Abhaengigkeiten. Ein vorhandenes venv wird bevorzugt,
+# sonst das System-Python (das httpx & Co. meist nicht hat).
+PYTHON="${PYTHON:-}"
+if [ -z "$PYTHON" ]; then
+  for kandidat in .venv/bin/python venv/bin/python \
+      /tmp/claude-*/*/*/scratchpad/venv/bin/python; do
+    [ -x "$kandidat" ] && PYTHON="$kandidat" && break
+  done
+fi
+PYTHON="${PYTHON:-python3}"
+
 rot=$'\e[31m'; gruen=$'\e[32m'; fett=$'\e[1m'; aus=$'\e[0m'
 info() { echo "${fett}==>${aus} $*"; }
 ok()   { echo "  ${gruen}✓${aus} $*"; }
@@ -32,8 +43,12 @@ info "Arbeitsverzeichnis pruefen"
 [ -z "$(git log origin/main..HEAD --oneline)" ] || fehler "Es gibt ungepushte Commits. Erst pushen."
 ok "sauber, $(git log --format='%h %s' -1)"
 
-info "Tests"
-python3 tests/test_logic.py 2>&1 | tail -3
+info "Tests ($PYTHON)"
+if ! "$PYTHON" -c "import httpx" 2>/dev/null; then
+  fehler "Die Testumgebung fehlt. Mit PYTHON=/pfad/zum/python erneut aufrufen,
+         oder: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+fi
+"$PYTHON" tests/test_logic.py 2>&1 | tail -3
 ok "bestanden"
 
 info "Auf $BUILD_HOST uebertragen"
