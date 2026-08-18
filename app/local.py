@@ -56,7 +56,7 @@ class LocalDevice:
         timeout: float = 5.0,
     ) -> None:
         if tinytuya is None:
-            raise LocalError("Das Paket tinytuya fehlt — lokaler Zugriff nicht moeglich")
+            raise LocalError("Das Paket tinytuya fehlt — lokaler Zugriff nicht möglich")
         self.device_id = device_id
         self.ip = ip
         self.local_key = local_key
@@ -107,7 +107,7 @@ class LocalDevice:
                     log.info("Protokollversion %s erkannt", v)
                 return antwort["dps"]
             letzter_fehler = f"{v}: {antwort}"
-        raise LocalError(f"Geraet antwortet nicht ({letzter_fehler[:140]})")
+        raise LocalError(f"Gerät antwortet nicht ({letzter_fehler[:140]})")
 
     def _schalten_roh(self, dp: int, wert: Any) -> None:
         d = self._verbindung(self.version or PROTOKOLL_VERSIONEN[0])
@@ -122,7 +122,7 @@ class LocalDevice:
         for dp, name in self.dp_map.items():
             if name == code:
                 return int(dp)
-        raise LocalError(f"Kein Datenpunkt fuer '{code}' bekannt")
+        raise LocalError(f"Kein Datenpunkt für '{code}' bekannt")
 
     # ------------------------------------------------------------ oeffentlich
 

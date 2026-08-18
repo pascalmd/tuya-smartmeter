@@ -122,6 +122,54 @@ def _historie() -> dict[str, Any]:
         return {"fehler": str(exc)[:200]}
 
 
+def plattform(einbindungen: Any) -> dict[str, Any]:
+    """Worauf laeuft das hier eigentlich?
+
+    Der Pfad allein taugt nicht als Antwort -- ein TrueNAS-Nutzer kann sein
+    Verzeichnis nennen, wie er will. Der Kernel dagegen gehoert dem Wirt und
+    ist im Container sichtbar: TrueNAS SCALE tragt sein Kuerzel dort ein
+    ("6.12.95-production+truenas"), und seine Datasets sind zfs. Damit steht
+    die Plattform fest, ohne dass jemand danach gefragt werden muss.
+    """
+    kern = platform.release().lower()
+    gruende: list[str] = []
+    vermutung = "Linux mit Docker"
+
+    if "truenas" in kern:
+        vermutung = "TrueNAS SCALE"
+        gruende.append(f"Kernel meldet sich als '{platform.release()}'")
+    elif "synology" in kern:
+        vermutung = "Synology DSM"
+        gruende.append(f"Kernel: {platform.release()}")
+    elif "unraid" in kern:
+        vermutung = "Unraid"
+        gruende.append(f"Kernel: {platform.release()}")
+
+    if isinstance(einbindungen, list):
+        zfs = [e for e in einbindungen if e.get("dateisystem") == "zfs"]
+        if zfs:
+            gruende.append(f"{len(zfs)} Einbindung(en) liegen auf zfs")
+            if vermutung == "Linux mit Docker":
+                vermutung = "ZFS-basiertes NAS (TrueNAS?)"
+        unter_mnt = [e for e in einbindungen if e.get("quelle", "").startswith("/mnt/")]
+        if unter_mnt:
+            gruende.append("Quellpfad liegt unter /mnt/")
+        # Synology nennt seinen Kernel nicht nach sich selbst; erkennbar ist es
+        # an den Datentraegern, die dort immer /volumeN heissen.
+        if any(e.get("quelle", "").startswith("/volume") for e in einbindungen):
+            gruende.append("Quellpfad liegt unter /volumeN")
+            if vermutung == "Linux mit Docker":
+                vermutung = "Synology DSM"
+
+    if os.environ.get("KUBERNETES_SERVICE_HOST"):
+        gruende.append("Kubernetes-Umgebung (bei TrueNAS vor 25.04 ueblich)")
+        if vermutung == "Linux mit Docker":
+            vermutung = "Kubernetes"
+
+    return {"vermutung": vermutung, "grund": gruende or ["keine besonderen Merkmale"],
+            "kernel": platform.release()}
+
+
 def laufzeitumgebung() -> dict[str, Any]:
     """Container, Grenzen, Einbindungen -- die haeufigsten stillen Ursachen.
 
@@ -279,6 +327,7 @@ def laufzeitumgebung() -> dict[str, Any]:
     except OSError:
         pass
     aus["lauscht_auf"] = sorted(set(lauscht)) or "nicht lesbar"
+    aus["plattform"] = plattform(aus["einbindungen"])
 
     # Eigene Adressen -- fuer die Frage, ob App und Geraet im selben Netz sind
     try:

@@ -163,8 +163,34 @@ Ohne `device` gilt immer das erste Gerät — bestehende Anbindungen lesen also
 unverändert weiter. Mehrere Geräte ansprechen: `?device=<Kennung>` an der URL,
 beim Schalten `{"code":"switch_1","value":true,"device":"<Kennung>"}`.
 | `GET /healthz` | Dienststatus, ohne Anmeldung — für Zabbix/Kuma |
+| `GET /diagnose.json` | Zustandsbericht zum Weitergeben (ohne Zugangsdaten, ohne Messwerte) |
+
+## Diagnose
+
+Läuft etwas nicht, erzeugt **Einstellungen → Diagnosebericht** eine Datei mit
+allem, was zur Fehlersuche taugt: Version und Git-Stand, Zugangswege, Geräte
+samt Innenleben des Pollers (Backoff, Ein-/Aus-Zeiten, erkannter Schaltkanal),
+Regel, Kennzahlen der Historie, die letzten 60 Ereignisse, Paketversionen,
+Datenbankschema, Laufzeitumgebung (Container, cgroup-Grenzen, eingebundene
+Verzeichnisse mit Quelle auf dem Wirt, Startbefehl, erkannte Plattform) und
+eine aktive Prüfung: DNS, TCP zur Tuya-Cloud und zu jedem Gerät auf Port 6668,
+dazu ein Uhrzeitabgleich — eine um Minuten falsche Systemzeit lässt jede
+Tuya-Signatur scheitern und meldet sich irreführend als „sign invalid".
+
+Der Bericht ist zum Verschicken gedacht und enthält deshalb **keine
+Geheimnisse**: Secrets, Schlüssel und Token erscheinen nur als Befund
+(„gesetzt, 32 Zeichen"), Kontokennungen nur angedeutet (`a78f… (20 Zeichen)`).
+Messwerte fehlen ganz — nur ihre Anzahl steht drin.
 
 ## Tests
+
+Drei Ebenen, alle drei laufen bei jeder Veröffentlichung:
+
+| Datei | Was sie prüft |
+|-------|---------------|
+| `tests/test_logic.py` | Schaltregeln, Gerätebestand, Aufbereitung der Tuya-Daten, Zahlenfelder |
+| `tests/test_ui.py` | jede Seite in jeder Zustandskombination, Formulare mit Rückweg in die Anzeige, Diagnose ohne Geheimnisse, Dauerbetrieb |
+| `tests/test_browser.py` | die Übersicht in einem echten Browser — sie baut ihren Inhalt per JavaScript, ein HTML-Test sieht davon nichts |
 
 ```bash
 python -m unittest discover -s tests -v

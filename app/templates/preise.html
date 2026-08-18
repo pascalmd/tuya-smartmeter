@@ -38,7 +38,10 @@
     <div style="display:flex; align-items:flex-end; gap:3px; min-width:max-content; height:190px">
       {% for row in stunden %}
         {% set hoehe = (12 + (row.ct - niedrigst) / ((hoechst - niedrigst) or 1) * 130)|round|int %}
-        {% set tageswechsel = loop.previtem and loop.previtem.day != row.day %}
+        {# loop.changed() statt loop.previtem: Beim ersten Element gibt es kein
+           vorheriges, und der Zugriff darauf ist dann kein leerer Wert, sondern
+           ein Fehler -- sichtbar nur bei strenger Pruefung. #}
+        {% set tageswechsel = not loop.first and loop.changed(row.day) %}
         {% set beschriften = loop.first or row.ct == niedrigst or row.ct == hoechst %}
         {% if tageswechsel %}
           <div style="align-self:stretch; display:flex; flex-direction:column; justify-content:flex-end;

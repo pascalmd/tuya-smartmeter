@@ -121,7 +121,7 @@ class SharingDevice:
         end_point = token_info.get("endpoint", "")
         if not (terminal_id and end_point):
             raise SharingError(
-                "Die gespeicherten Zugangsdaten sind unvollstaendig "
+                "Die gespeicherten Zugangsdaten sind unvollständig "
                 "(terminal_id oder endpoint fehlt) — bitte neu anmelden"
             )
 
@@ -139,7 +139,7 @@ class SharingDevice:
         geraet = self._manager.device_map.get(self.device_id)
         if geraet is None:
             raise SharingError(
-                f"Geraet {self.device_id} ist ueber diesen Zugang nicht sichtbar"
+                f"Gerät {self.device_id} ist über diesen Zugang nicht sichtbar"
             )
         return geraet
 

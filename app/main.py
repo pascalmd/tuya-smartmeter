@@ -391,7 +391,7 @@ async def einrichten_lokal(ip: str, device_id: str = "") -> tuple[bool, str]:
     """
     eintrag = geraete.aufloesen(device_id)
     if not eintrag:
-        return False, "Kein Geraet ausgewaehlt"
+        return False, "Kein Gerät ausgewählt"
     device_id = eintrag["id"]
     ip = ip.strip()
     if not ip:
@@ -429,17 +429,17 @@ async def einrichten_lokal(ip: str, device_id: str = "") -> tuple[bool, str]:
                 pass
             quelle = quelle or "Entwicklerprojekt"
         except Exception as exc:
-            return False, f"Kein Schluessel zu bekommen: {exc}"
+            return False, f"Kein Schlüssel zu bekommen: {exc}"
 
     if not key:
-        return False, "Es wurde kein lokaler Schluessel herausgegeben"
+        return False, "Es wurde kein lokaler Schlüssel herausgegeben"
 
     # Verbindung aufbauen und dabei die Protokollversion ermitteln
     pruef = local.LocalDevice(device_id, ip, key, dp_map or dict(local.STANDARD_DP_MAP))
     try:
         roh = await asyncio.to_thread(pruef._status_roh)
     except Exception as exc:
-        return False, f"Geraet unter {ip} nicht erreichbar: {exc}"
+        return False, f"Gerät unter {ip} nicht erreichbar: {exc}"
 
     # Zuordnung: liegt keine offizielle vor, aus dem Wertevergleich gewinnen
     if not dp_map:
@@ -455,12 +455,12 @@ async def einrichten_lokal(ip: str, device_id: str = "") -> tuple[bool, str]:
     reset_local(device_id)
     store.log_event(
         "info",
-        f"Lokaler Zugang eingerichtet ({ip}, Protokoll {pruef.version}, Schluessel via {quelle})",
+        f"Lokaler Zugang eingerichtet ({ip}, Protokoll {pruef.version}, Schlüssel via {quelle})",
         device=device_id,
     )
     return True, (
         f"Verbunden — {len(roh)} Datenpunkte, Protokoll {pruef.version}, "
-        f"Schluessel über {quelle}"
+        f"Schlüssel über {quelle}"
     )
 
 
@@ -534,11 +534,11 @@ async def poll_device(st: DeviceState | None = None) -> None:
     if not st.online:
         if st.offline_since is None:
             st.offline_since = time.time()
-            store.log_event("warn", "Geraet meldet sich nicht mehr (offline)", device=device_id)
+            store.log_event("warn", "Gerät meldet sich nicht mehr (offline)", device=device_id)
             log.warning("[%s] Geraet ist offline", st.label())
     else:
         if war_online is False:
-            store.log_event("info", "Geraet ist wieder online", device=device_id)
+            store.log_event("info", "Gerät ist wieder online", device=device_id)
             log.info("[%s] Geraet ist wieder online", st.label())
         st.offline_since = None
 
@@ -586,7 +586,7 @@ async def poll_device(st: DeviceState | None = None) -> None:
             store.log_event(
                 "info",
                 f"Schaltkanal erkannt: '{gewaehlt}'"
-                + (f" — das Geraet meldet {len(vorhandene)}: {', '.join(vorhandene)}"
+                + (f" — das Gerät meldet {len(vorhandene)}: {', '.join(vorhandene)}"
                    if len(vorhandene) > 1 else ""),
                 device=device_id,
             )
@@ -696,7 +696,7 @@ async def apply_automation(st: DeviceState | None = None) -> None:
             dauer = f" (seit {round((time.time() - st.offline_since) / 60)} min)"
         st.last_decision = {
             "desired": None,
-            "reason": f"Geraet ist nicht erreichbar{dauer} — es wird nicht geschaltet",
+            "reason": f"Gerät ist nicht erreichbar{dauer} — es wird nicht geschaltet",
             "price_ct": None,
         }
         return
@@ -746,7 +746,7 @@ async def apply_automation(st: DeviceState | None = None) -> None:
         and (time.time() - st.on_since) < auto["min_on_minutes"] * 60
     ):
         rest = round(auto["min_on_minutes"] - (time.time() - st.on_since) / 60)
-        st.last_decision["reason"] += f" — Mindestlaufzeit laeuft noch ({rest} min)"
+        st.last_decision["reason"] += f" — Mindestlaufzeit läuft noch ({rest} min)"
         return
 
     try:
@@ -854,7 +854,7 @@ async def lifespan(app: FastAPI):
         log.info("Startzeitpunkt fuer die Testzeitraum-Ueberwachung nachgetragen")
         store.log_event(
             "info",
-            "Ueberwachung des Tuya-Testzeitraums beginnt ab heute "
+            "Überwachung des Tuya-Testzeitraums beginnt ab heute "
             "(tatsaechlicher Projektstart unbekannt)",
         )
     task = asyncio.create_task(poller(), name="tuya-poller")
@@ -902,12 +902,24 @@ def require_api_access(request: Request) -> None:
 
 
 def page(request: Request, name: str, **ctx: Any) -> HTMLResponse:
-    return TEMPLATES.TemplateResponse(
-        request, name,
-        {"cfg": config, "show_nav": True,
-         "version": VERSION, "build_date": BUILD_DATE, "git_commit": GIT_COMMIT,
-         **ctx},
-    )
+    """Eine Seite ausliefern -- mit allem, worauf das Grundgeruest zugreift.
+
+    Die gemeinsamen Werte stehen hier und nicht in jeder Route einzeln. Fehlte
+    einer, lieferte Jinja stillschweigend nichts: kein Fehler, nur eine
+    Kopfzeile ohne Namen oder ein Haekchen, das nie gesetzt erscheint. Genau
+    daran lag der Fehler, dass sich "folgt der Regel" nicht umlegen liess.
+    """
+    grund: dict[str, Any] = {
+        "cfg": config,
+        "show_nav": True,
+        "version": VERSION,
+        "build_date": BUILD_DATE,
+        "git_commit": GIT_COMMIT,
+        "geraet": None,          # gesetzt auf geraetebezogenen Seiten
+        "geraete_liste": [],     # fuer den Umschalter im Kopf
+    }
+    grund.update(ctx)
+    return TEMPLATES.TemplateResponse(request, name, grund)
 
 
 # Die Verlaengerung ist bei Tuya ein Antrag, kein Klick - laut Support dauert
@@ -1019,7 +1031,7 @@ def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str,
             "Die Access ID wurde erkannt, aber das Access Secret passt nicht dazu. "
             "Fast immer liegt es am Kopieren: In der Tuya-Oberflaeche ist das Secret "
             "verborgen — erst auf das Augen-Symbol klicken, dann den sichtbaren Text "
-            "vollstaendig markieren und kopieren."
+            "vollständig markieren und kopieren."
         )
         if len(sec) != 32:
             hint += (
@@ -1036,7 +1048,7 @@ def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str,
     if code == 2009:  # clientId is invalid
         return (
             "Die Access ID kennt Tuya nicht (Code 2009). Entweder ist sie vertippt, "
-            "oder das Projekt liegt in einem anderen Rechenzentrum als hier ausgewaehlt. "
+            "oder das Projekt liegt in einem anderen Rechenzentrum als hier ausgewählt. "
             "Im Tuya-Projekt unter Overview steht, welches es ist."
         )
 
@@ -1061,9 +1073,9 @@ def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str,
             # Projektfehler -- und wer ein Geraet falsch eingetragen hatte,
             # suchte den Fehler in den Projekteinstellungen.
             return (
-                f"Keine Berechtigung{wen} (Code 1106). Meist gehoert das Geraet nicht "
+                f"Keine Berechtigung{wen} (Code 1106). Meist gehört das Gerät nicht "
                 "zum Projekt: auf iot.tuya.com unter Devices → Link App Account pruefen, "
-                "ob das Smart-Life-Konto verknuepft ist und das Geraet dort auftaucht. "
+                "ob das Smart-Life-Konto verknuepft ist und das Gerät dort auftaucht. "
                 "Sonst fehlt im Projekt eine der APIs (IoT Core, Authorization, "
                 f"Smart Home Scene Linkage).{frist}"
             )
@@ -1072,13 +1084,38 @@ def tuya_error_hint(exc: TuyaError, client_id: str, client_secret: str,
             "Keine Berechtigung (Code 1114). Im Tuya-Projekt auf iot.tuya.com fehlt "
             "eine der APIs (IoT Core, Authorization, Smart Home Scene Linkage), oder "
             "der Testzeitraum ist abgelaufen — dann dort unter Service → Extend Trial "
-            "verlaengern."
+            "verlängern."
         )
 
     return (
         f"Die Tuya-Cloud lehnt die Anfrage ab: {exc.msg} (Code {code}). "
         "Bitte Access ID, Access Secret und das Rechenzentrum pruefen."
     )
+
+
+def zahl(wert: Any, standard: float = 0.0) -> float:
+    """Eine Zahl aus einem Formularfeld lesen, ohne daran zu scheitern.
+
+    Zwei Faelle, die sonst zum Programmabbruch fuehren: ein leeres oder
+    unsinniges Feld -- und, viel haeufiger, das deutsche Komma. Wer "19,5"
+    eintippt, hat nichts falsch gemacht; die App muss das lesen koennen.
+    """
+    if wert is None:
+        return standard
+    text = str(wert).strip().replace(",", ".")
+    if not text:
+        return standard
+    try:
+        ergebnis = float(text)
+    except ValueError:
+        return standard
+    if ergebnis != ergebnis or ergebnis in (float("inf"), float("-inf")):
+        return standard          # NaN und Unendlich sind keine Einstellungen
+    return ergebnis
+
+
+def ganzzahl(wert: Any, standard: int = 0) -> int:
+    return int(zahl(wert, standard))
 
 
 def sicheres_ziel(ziel: str, standard: str) -> str:
@@ -1287,7 +1324,7 @@ async def devices_add(request: Request, device_id: str = Form(...), device_name:
     st.spec = {}
     st.spec_fetched_at = 0.0
     st.ts = 0.0
-    store.log_event("info", f"Geraet aufgenommen: {eintrag['name']}", device=device_id)
+    store.log_event("info", f"Gerät aufgenommen: {eintrag['name']}", device=device_id)
     try:
         await poll_device(st)
     except Exception as exc:
@@ -1308,7 +1345,7 @@ async def devices_remove(request: Request, device_id: str = Form(...)):
     name = (eintrag or {}).get("name") or device_id[:8]
     if geraete.entfernen(device_id.strip()):
         vergessen(device_id.strip())
-        store.log_event("info", f"Geraet entfernt: {name}")
+        store.log_event("info", f"Gerät entfernt: {name}")
         return RedirectResponse(f"/devices?saved=1&meldung=Entfernt:+{name.replace(' ', '+')}", 303)
     return RedirectResponse("/devices?saved=error&meldung=Nicht+gefunden", 303)
 
@@ -1352,9 +1389,9 @@ async def devices_active(request: Request, device_id: str = Form(...), aktiv: st
     geraete.aktualisieren(gid, aktiv=bool(aktiv))
     if not aktiv:
         vergessen(gid)
-        store.log_event("info", "Geraet ruht — wird nicht mehr abgefragt", device=gid)
+        store.log_event("info", "Gerät ruht — wird nicht mehr abgefragt", device=gid)
     else:
-        store.log_event("info", "Geraet wieder aktiv", device=gid)
+        store.log_event("info", "Gerät wieder aktiv", device=gid)
     return RedirectResponse("/devices?saved=1", 303)
 
 
@@ -1596,13 +1633,18 @@ async def prices_page(request: Request, saved: str = ""):
 async def prices_save(
     request: Request,
     source: str = Form("awattar_de"),
-    markup_ct: float = Form(20.0),
-    vat_percent: float = Form(19.0),
+    markup_ct: str = Form("20"),
+    vat_percent: str = Form("19"),
 ):
+    # Als Text entgegennehmen und selbst umwandeln: Sonst beantwortet die
+    # Formularpruefung ein deutsches Komma mit einer nackten Fehlerseite,
+    # auf der nicht steht, was zu tun waere.
     require_login(request)
-    cfg = prices.settings(
-        {"source": source, "markup_ct": markup_ct, "vat_percent": vat_percent}
-    )
+    cfg = prices.settings({
+        "source": source,
+        "markup_ct": zahl(markup_ct, 20.0),
+        "vat_percent": zahl(vat_percent, 19.0),
+    })
     config.set("price", cfg)
     config.save()
 
@@ -1701,6 +1743,9 @@ async def automation_page(request: Request, saved: str = "", device: str = ""):
         geraete=[
             {**geraete.holen(z.device_id), "zustand": z.as_dict()} for z in alle_zustaende()
         ],
+        # Fuer die Kopfzeile: Die Regel gilt fuer alle, also steht dort der
+        # Name der App und nicht der eines einzelnen Geraets.
+        geraete_liste=geraete.zusammenfassung(),
         saved=saved,
     )
 
@@ -1714,13 +1759,13 @@ async def automation_save(request: Request):
         {
             "enabled": form.get("enabled") == "on",
             "mode": form.get("mode") or "threshold",
-            "threshold_ct": float(form.get("threshold_ct") or 0),
-            "cheapest_hours": int(form.get("cheapest_hours") or 0),
+            "threshold_ct": zahl(form.get("threshold_ct")),
+            "cheapest_hours": ganzzahl(form.get("cheapest_hours")),
             "levels": form.getlist("levels"),
-            "min_off_minutes": int(form.get("min_off_minutes") or 0),
-            "min_on_minutes": int(form.get("min_on_minutes") or 0),
-            "max_off_hours": int(form.get("max_off_hours") or 0),
-            "override_minutes": int(form.get("override_minutes") or 0),
+            "min_off_minutes": ganzzahl(form.get("min_off_minutes")),
+            "min_on_minutes": ganzzahl(form.get("min_on_minutes")),
+            "max_off_hours": ganzzahl(form.get("max_off_hours")),
+            "override_minutes": ganzzahl(form.get("override_minutes")),
         }
     )
     config.set("automation", automation.settings(auto))
@@ -1777,8 +1822,8 @@ async def settings_save(
     client_id: str = Form(...),
     client_secret: str = Form(""),
     region: str = Form("eu"),
-    refresh_seconds: int = Form(10),
-    history_seconds: int = Form(60),
+    refresh_seconds: str = Form("180"),
+    history_seconds: str = Form("60"),
     trial_expires: str = Form(""),
     password: str = Form(""),
     password2: str = Form(""),
@@ -1812,8 +1857,9 @@ async def settings_save(
         # Neue Zugangsdaten heissen in aller Regel: neues Projekt, neuer Zeitraum.
         config.set("tuya_setup_ts", time.time())
     config.set_tuya(client_id, secret, region)
-    config.set("refresh_seconds", max(MIN_INTERVAL, min(MAX_INTERVAL, int(refresh_seconds))))
-    config.set("history_seconds", max(0, min(3600, int(history_seconds))))
+    config.set("refresh_seconds", max(MIN_INTERVAL, min(MAX_INTERVAL,
+                                                        ganzzahl(refresh_seconds, 180))))
+    config.set("history_seconds", max(0, min(3600, ganzzahl(history_seconds, 60))))
 
     datum = (trial_expires or "").strip()
     if datum:
@@ -1836,7 +1882,7 @@ async def trial_verlaengert(request: Request):
     require_login(request)
     config.set("tuya_setup_ts", time.time())
     config.save()
-    store.log_event("info", "Tuya-Testzeitraum als verlaengert markiert")
+    store.log_event("info", "Tuya-Testzeitraum als verlängert markiert")
     return RedirectResponse(request.headers.get("referer", "/"), status_code=303)
 
 
@@ -2024,11 +2070,11 @@ async def api_switch(request: Request, _: None = Depends(require_api_access)):
         )
     st = zustand(payload.get("device") or payload.get("device_id") or "")
     if not st.device_id:
-        raise HTTPException(status_code=400, detail="Kein Geraet eingerichtet")
+        raise HTTPException(status_code=400, detail="Kein Gerät eingerichtet")
     if st.online is False:
         raise HTTPException(
             status_code=409,
-            detail="Das Geraet ist nicht erreichbar. Strom da? WLAN da?",
+            detail="Das Gerät ist nicht erreichbar. Strom da? WLAN da?",
         )
 
     try:

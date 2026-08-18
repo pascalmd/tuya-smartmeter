@@ -203,7 +203,7 @@ def decide(
                 pass
         return Decision(
             on,
-            f"Diese Stunde gehoert {'zu' if on else 'nicht zu'} den {count} guenstigsten des Tages",
+            f"Diese Stunde gehört {'zu' if on else 'nicht zu'} den {count} günstigsten des Tages",
             price_ct,
         )
 
@@ -227,7 +227,7 @@ def decide(
             hinweis = "kein Block bestimmbar"
         entscheidung = Decision(
             on,
-            f"Diese Stunde liegt {'im' if on else 'nicht im'} guenstigsten "
+            f"Diese Stunde liegt {'im' if on else 'nicht im'} günstigsten "
             f"{count}-Stunden-Block ({hinweis})",
             price_ct,
         )

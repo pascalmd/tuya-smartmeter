@@ -591,6 +591,100 @@ class AutomatikZustaende(unittest.TestCase):
         self.assertEqual(self.main.sicheres_ziel("", "/devices"), "/devices")
 
 
+class Zahlenfelder(unittest.TestCase):
+    """Was Menschen in Zahlenfelder tippen.
+
+    Der Grund dafuer ist unspektakulaer und trotzdem wichtig: Wer hier wohnt,
+    schreibt "19,5". Vorher endete das in einem Programmabbruch, weil float()
+    das Komma nicht kennt -- die Regel liess sich dann schlicht nicht
+    speichern, ohne dass irgendwo stand, warum.
+    """
+
+    def test_deutsches_komma(self) -> None:
+        from app.main import ganzzahl, zahl
+
+        self.assertEqual(zahl("19,5"), 19.5)
+        self.assertEqual(zahl("0,25"), 0.25)
+        self.assertEqual(ganzzahl("7,9"), 7)
+
+    def test_punkt_bleibt_gueltig(self) -> None:
+        from app.main import zahl
+
+        self.assertEqual(zahl("19.5"), 19.5)
+        self.assertEqual(zahl(19.5), 19.5)
+        self.assertEqual(zahl(7), 7.0)
+
+    def test_unsinn_faellt_auf_den_standard_zurueck(self) -> None:
+        from app.main import ganzzahl, zahl
+
+        for eingabe in ("abc", "", "   ", None, "12,3,4", "--5"):
+            self.assertEqual(zahl(eingabe, 42.0), 42.0, repr(eingabe))
+            self.assertEqual(ganzzahl(eingabe, 42), 42, repr(eingabe))
+
+    def test_unendlich_und_nan_sind_keine_einstellungen(self) -> None:
+        from app.main import zahl
+
+        self.assertEqual(zahl("1e400", 5.0), 5.0)     # wird zu inf
+        self.assertEqual(zahl("nan", 5.0), 5.0)
+        self.assertEqual(zahl("-inf", 5.0), 5.0)
+
+    def test_leerzeichen_stoeren_nicht(self) -> None:
+        from app.main import zahl
+
+        self.assertEqual(zahl("  19,5  "), 19.5)
+
+
+class Plattformerkennung(unittest.TestCase):
+    """Woran die Diagnose erkennt, worauf sie laeuft.
+
+    Der Pfad taugt nicht: Wer TrueNAS benutzt, darf sein Verzeichnis nennen,
+    wie er will. Der Kernel gehoert dagegen dem Wirt und ist im Container
+    sichtbar -- TrueNAS SCALE traegt sein Kuerzel dort ein.
+    """
+
+    def erkennen(self, kernel: str, mounts: list[dict]) -> dict:
+        import platform as pf
+
+        from app import diagnose
+
+        echt = pf.release
+        pf.release = lambda: kernel
+        try:
+            return diagnose.plattform(mounts)
+        finally:
+            pf.release = echt
+
+    def test_truenas_am_kernel_egal_welcher_pfad(self) -> None:
+        for pfad in ("/mnt/tank/apps/tuya", "/mnt/pool2/eigenes/verzeichnis",
+                     "/mnt/daten/x"):
+            e = self.erkennen("6.12.95-production+truenas",
+                              [{"dateisystem": "zfs", "quelle": pfad}])
+            self.assertEqual(e["vermutung"], "TrueNAS SCALE", pfad)
+
+    def test_zfs_allein_bleibt_eine_vermutung(self) -> None:
+        e = self.erkennen("5.15.0-generic", [{"dateisystem": "zfs", "quelle": "/mnt/tank/x"}])
+        self.assertIn("TrueNAS?", e["vermutung"])
+
+    def test_gewoehnlicher_docker_host(self) -> None:
+        e = self.erkennen("6.8.0-generic",
+                          [{"dateisystem": "ext4", "quelle": "/DATA/AppData/x"}])
+        self.assertEqual(e["vermutung"], "Linux mit Docker")
+
+    def test_synology_am_volume_pfad(self) -> None:
+        e = self.erkennen("4.4.180+", [{"dateisystem": "ext4", "quelle": "/volume1/docker"}])
+        self.assertEqual(e["vermutung"], "Synology DSM")
+
+    def test_unraid(self) -> None:
+        e = self.erkennen("6.1.64-Unraid", [{"dateisystem": "xfs", "quelle": "/mnt/user/x"}])
+        self.assertEqual(e["vermutung"], "Unraid")
+
+    def test_grund_wird_immer_genannt(self) -> None:
+        """Eine Vermutung ohne Begruendung ist wertlos."""
+        e = self.erkennen("6.12.95-production+truenas", [])
+        self.assertTrue(e["grund"])
+        self.assertIn("truenas", e["kernel"])
+
+
 class Fehlermeldungen(unittest.TestCase):
     """Was bei einem Rechtefehler dasteht, muss zur Lage passen."""
 

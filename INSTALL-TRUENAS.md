@@ -363,6 +363,17 @@ mit ihrem Zustand und je einem Ein/Aus-Knopf untereinander; **Verlauf** und
 
 Detailfehler stehen im Container-Log: **Apps → tuya-smartmeter → Logs**.
 
+### Wenn du nicht weiterkommst
+
+Unter **Einstellungen → Diagnosebericht erstellen** erzeugt die App einen
+Bericht über ihren Zustand: Version, Zugangswege, Geräte, Regel, die letzten
+Ereignisse, dazu eine Prüfung von Netz und Uhrzeit. Den kannst du als Datei
+herunterladen und demjenigen schicken, der dir hilft.
+
+Was **nicht** drinsteht: keine Zugangsdaten — von Secret, Schlüsseln und Token
+steht nur da, *ob* sie gesetzt sind und wie lang sie sind. Und kein einziger
+Messwert; man sieht dem Bericht also nicht an, wann jemand zu Hause war.
+
 ---
 
 ## Statt NAS: Raspberry Pi

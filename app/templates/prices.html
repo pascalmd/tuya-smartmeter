@@ -34,6 +34,14 @@
         Für Tibber brauchst du ein Konto mit aktivem Vertrag. Nach dem Speichern
         fragt die App nach dem Zugriffstoken.
       </div>
+    {% else %}
+      {# Ohne diesen Weg kaeme man an ein abgelaufenes Token nicht mehr heran:
+         Die Tibber-Seite wurde bisher nur bei der Ersteinrichtung angezeigt. #}
+      <p class="hint" style="margin-top:12px">
+        Tibber-Zugang steht{% if tibber.get('home_label') %} für
+        <strong>{{ tibber.get('home_label') }}</strong>{% endif %}.
+        <a href="/tibber">Token oder Zuhause ändern</a>
+      </p>
     {% endif %}
   </div>
 

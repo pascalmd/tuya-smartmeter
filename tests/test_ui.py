@@ -18,6 +18,7 @@ import itertools
 import os
 import re
 import sys
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -292,6 +293,297 @@ class OberflaechenDurchgang(unittest.TestCase):
         neu = {g["device_id"]: [s["value"] for s in g["switches"]] for g in nachher}
         self.assertNotEqual(stand["dose"], neu["dose"])
         self.assertEqual(stand["zaehler"], neu["zaehler"])   # unberuehrt
+
+
+class StrengeVorlagen(unittest.TestCase):
+    """Jede Seite mit StrictUndefined rendern.
+
+    Der Kern der Fehler, die zuletzt aufgefallen sind: Eine Vorlage greift auf
+    etwas zu, das die Route gar nicht uebergibt. Jinja liefert dann still ein
+    leeres Feld -- ein Haekchen bleibt eben immer leer, und niemand sieht,
+    warum. Mit StrictUndefined wird daraus ein Fehler, und zwar bevor es
+    jemand im Browser bemerkt.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        from jinja2 import StrictUndefined
+        from fastapi.testclient import TestClient
+
+        cls.vorher = main.TEMPLATES.env.undefined
+        main.TEMPLATES.env.undefined = StrictUndefined
+        main.logged_in = lambda request: True
+        cls.client = TestClient(main.app)
+        cls.client.__enter__()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        main.TEMPLATES.env.undefined = cls.vorher
+        cls.client.__exit__(None, None, None)
+
+    def test_alle_seiten_in_allen_lagen(self) -> None:
+        import itertools
+
+        config.set_admin_password("streng12345")
+        config.set("setup_done", True)
+        for regel_an, folgt, ruht, zwei in itertools.product([True, False], repeat=4):
+            with self.subTest(regel=regel_an, folgt=folgt, ruht=ruht, zwei=zwei):
+                config.set("automation", {"enabled": regel_an, "mode": "threshold",
+                                          "threshold_ct": 25.0})
+                eintraege = [{"id": "a", "name": "Eins", "aktiv": True}]
+                if zwei:
+                    eintraege.append({"id": "b", "name": "Zwei",
+                                      "automatik_aktiv": folgt, "aktiv": not ruht})
+                geraete.speichern(eintraege)
+                main._states.clear()
+                for pfad in SEITEN + ["/diagnose", "/?device=b", "/verlauf?device=b",
+                                      "/automation?device=b", "/preise?device=b",
+                                      "/zugang?device=b"]:
+                    antwort = self.client.get(pfad, follow_redirects=False)
+                    self.assertLess(antwort.status_code, 400,
+                                    f"{pfad} bei regel={regel_an} folgt={folgt} "
+                                    f"ruht={ruht} zwei={zwei}: {antwort.status_code}")
+
+    def test_ohne_geraete_und_ohne_preise(self) -> None:
+        geraete.speichern([])
+        main._states.clear()
+        main.preise.data, main.preise.ts, main.preise.error = {}, 0.0, ""
+        for pfad in SEITEN + ["/diagnose"]:
+            antwort = self.client.get(pfad, follow_redirects=False)
+            self.assertLess(antwort.status_code, 400, f"{pfad}: {antwort.status_code}")
+
+
+class FormularDurchlauf(unittest.TestCase):
+    """Jedes Formular abschicken und pruefen, dass die Eingabe ankommt.
+
+    Und zwar bis in die Anzeige: Gespeichert wurde beim Haekchen-Fehler
+    korrekt -- zu sehen war es nur nie. Ein Test, der nur die Konfiguration
+    prueft, haette ihn durchgelassen.
+    """
+
+    def setUp(self) -> None:
+        from fastapi.testclient import TestClient
+
+        config.set_admin_password("formular123")
+        config.set("setup_done", True)
+        config.set("automation", {"enabled": True, "mode": "threshold", "threshold_ct": 25.0})
+        geraete.speichern([
+            {"id": "eins", "name": "Erstes", "aktiv": True, "automatik_aktiv": True},
+            {"id": "zwei", "name": "Zweites", "aktiv": True, "automatik_aktiv": True},
+        ])
+        main._states.clear()
+        main.logged_in = lambda request: True
+        self.client = TestClient(main.app)
+
+    def tearDown(self) -> None:
+        self.client.close()
+
+    def gehakt(self, html: str, geraet: str, feld: str) -> bool:
+        zeile = html.split(f'value="{geraet}"', 1)[1] if f'value="{geraet}"' in html else ""
+        if f'name="{feld}"' not in zeile:
+            return False
+        return "checked" in zeile.split(f'name="{feld}"', 1)[1].split(">")[0]
+
+    def test_umbenennen(self) -> None:
+        self.client.post("/devices/umbenennen",
+                         data={"device_id": "zwei", "name": "Waschmaschine"},
+                         follow_redirects=False)
+        self.assertEqual(geraete.holen("zwei")["name"], "Waschmaschine")
+        for pfad in ("/devices", "/?device=zwei", "/verlauf?device=zwei"):
+            self.assertIn("Waschmaschine", self.client.get(pfad).text, pfad)
+
+    def test_automatik_haekchen_hin_und_zurueck(self) -> None:
+        for gesetzt in (False, True, False):
+            daten = {"device_id": "zwei"}
+            if gesetzt:
+                daten["mitmachen"] = "on"
+            self.client.post("/devices/automatik", data=daten, follow_redirects=False)
+            self.assertEqual(geraete.holen("zwei")["automatik_aktiv"], gesetzt)
+            self.assertEqual(self.gehakt(self.client.get("/devices").text, "zwei",
+                                         "mitmachen"), gesetzt)
+
+    def test_abfragen_haekchen_hin_und_zurueck(self) -> None:
+        for gesetzt in (False, True):
+            daten = {"device_id": "zwei"}
+            if gesetzt:
+                daten["aktiv"] = "on"
+            self.client.post("/devices/aktiv", data=daten, follow_redirects=False)
+            self.assertEqual(geraete.holen("zwei")["aktiv"], gesetzt)
+            self.assertEqual(self.gehakt(self.client.get("/devices").text, "zwei",
+                                         "aktiv"), gesetzt)
+
+    def test_aufzeichnen_haekchen_hin_und_zurueck(self) -> None:
+        for gesetzt in (False, True):
+            daten = {"device_id": "zwei"}
+            if gesetzt:
+                daten["aufzeichnen"] = "on"
+            self.client.post("/devices/aufzeichnen", data=daten, follow_redirects=False)
+            self.assertEqual(geraete.holen("zwei")["aufzeichnen"], gesetzt)
+            self.assertEqual(self.gehakt(self.client.get("/devices").text, "zwei",
+                                         "aufzeichnen"), gesetzt)
+
+    def test_regel_speichern_und_wiederfinden(self) -> None:
+        self.client.post("/automation", data={
+            "enabled": "on", "mode": "cheapest", "threshold_ct": "19.5",
+            "cheapest_hours": "7", "min_off_minutes": "15", "min_on_minutes": "45",
+            "max_off_hours": "8", "override_minutes": "90",
+        }, follow_redirects=False)
+        gespeichert = config.get("automation")
+        self.assertEqual(gespeichert["mode"], "cheapest")
+        self.assertEqual(gespeichert["cheapest_hours"], 7)
+        self.assertEqual(gespeichert["min_on_minutes"], 45)
+
+        seite = self.client.get("/automation").text
+        self.assertIn('value="7"', seite)
+        self.assertIn('value="45"', seite)
+        # Und der Kanal darf dabei nicht wieder in die Regel wandern
+        self.assertFalse(gespeichert.get("switch_code"))
+
+    def test_geraet_hinzufuegen_und_entfernen(self) -> None:
+        self.client.post("/devices", data={"device_id": "drittes", "device_name": "Drittes"},
+                         follow_redirects=False)
+        self.assertIsNotNone(geraete.holen("drittes"))
+        self.assertIn("Drittes", self.client.get("/devices").text)
+
+        self.client.post("/devices/entfernen", data={"device_id": "drittes"},
+                         follow_redirects=False)
+        self.assertIsNone(geraete.holen("drittes"))
+        self.assertNotIn("Drittes", self.client.get("/devices").text)
+
+    def test_regel_mit_deutschem_komma(self) -> None:
+        """"19,5" ist eine gueltige Eingabe, kein Grund fuer einen Absturz."""
+        antwort = self.client.post("/automation", data={
+            "enabled": "on", "mode": "threshold", "threshold_ct": "19,5",
+            "cheapest_hours": "6", "min_on_minutes": "30",
+        }, follow_redirects=False)
+        self.assertLess(antwort.status_code, 400)
+        self.assertEqual(config.get("automation")["threshold_ct"], 19.5)
+
+    def test_formulare_ueberstehen_unsinnige_zahlen(self) -> None:
+        for pfad, daten in [
+            ("/automation", {"enabled": "on", "mode": "threshold",
+                             "threshold_ct": "abc", "cheapest_hours": "-5"}),
+            ("/preisquelle", {"source": "awattar_de", "markup_ct": "viel"}),
+            ("/settings", {"client_id": "", "client_secret": "", "region": "eu",
+                           "refresh_seconds": "schnell", "history_seconds": "oft"}),
+        ]:
+            with self.subTest(pfad=pfad):
+                antwort = self.client.post(pfad, data=daten, follow_redirects=False)
+                self.assertLess(antwort.status_code, 500, f"{pfad}: {antwort.status_code}")
+
+    def test_tibber_zugang_bleibt_erreichbar(self) -> None:
+        """Ein abgelaufenes Token muss man aendern koennen.
+
+        Die Tibber-Seite wurde bisher nur bei der Ersteinrichtung angezeigt --
+        danach fuehrte kein Weg mehr dorthin.
+        """
+        from app.config import config
+
+        config.set('tibber', {'token': 'abc', 'home_id': 'h1', 'home_label': 'Zuhause'})
+        config.set('price', {'source': 'tibber'})
+        seite = self.client.get('/preisquelle').text
+        self.assertIn('/tibber', seite)
+        self.assertLess(self.client.get('/tibber').status_code, 400)
+
+    def test_preisquelle_wechseln(self) -> None:
+        self.client.post("/preisquelle", data={"source": "energy_charts", "markup_ct": "12.5"},
+                         follow_redirects=False)
+        self.assertEqual(config.get("price")["source"], "energy_charts")
+        self.assertIn("12.5", self.client.get("/preisquelle").text)
+
+
+class Dauerbetrieb(unittest.TestCase):
+    """Faelle, die kein Formular abdeckt und die trotzdem taeglich vorkommen."""
+
+    def setUp(self) -> None:
+        import asyncio
+
+        self.asyncio = asyncio
+        config.set("setup_done", True)
+        config.set("automation", {"enabled": True, "mode": "threshold",
+                                  "threshold_ct": 25.0})
+        geraete.speichern([
+            {"id": "gut", "name": "Gutes",
+             "local": {"enabled": True, "ip": "10.0.0.1", "key": "k"}},
+            {"id": "tot", "name": "Totes",
+             "local": {"enabled": True, "ip": "10.0.0.2", "key": "k",
+                       "fallback_cloud": False}},
+        ])
+        main._states.clear()
+        self.geraete = {
+            "gut": FakeGeraet("gut", {"switch": True, "cur_power": 100}),
+            "tot": FakeGeraet("tot", {"switch_1": False}, erreichbar=False),
+        }
+        main.local_device = lambda gid="": self.geraete.get(
+            (geraete.aufloesen(gid) or {}).get("id")
+        )
+        main.sharing_device = lambda gid="": None
+        main.preise.data = {"current": {"total": 0.10, "startsAt": "x"}}
+        main.preise.ts = time.time()
+        main.preise.error = ""
+
+    def durchlauf(self) -> None:
+        async def lauf():
+            for st in main.alle_zustaende(nur_aktive=True):
+                await main.durchlauf(st, 180)
+        self.asyncio.run(lauf())
+
+    def test_ein_totes_geraet_haelt_die_anderen_nicht_auf(self) -> None:
+        self.durchlauf()
+        gut, tot = main.zustand("gut"), main.zustand("tot")
+        self.assertTrue(gut.ok)
+        self.assertTrue(gut.online)
+        self.assertFalse(tot.ok)
+        self.assertTrue(tot.backoff, "Das tote Geraet muss eine Pause bekommen")
+        self.assertIn("Schwelle", gut.last_decision.get("reason", ""))
+
+    def test_ohne_preise_wird_nicht_geschaltet(self) -> None:
+        self.durchlauf()
+        main.preise.data, main.preise.error = {}, "Netz weg"
+        self.asyncio.run(main.apply_automation(main.zustand("gut")))
+        entscheidung = main.zustand("gut").last_decision
+        self.assertIsNone(entscheidung["desired"])
+        self.assertIn("Netz weg", entscheidung["reason"])
+
+    def test_gleichzeitige_schaltbefehle(self) -> None:
+        self.durchlauf()
+        st = main.zustand("gut")
+
+        async def viele():
+            return await self.asyncio.gather(*[
+                main.schalten(st, "switch", i % 2 == 0) for i in range(6)
+            ], return_exceptions=True)
+
+        ergebnisse = self.asyncio.run(viele())
+        self.assertEqual([r for r in ergebnisse if isinstance(r, Exception)], [])
+
+    def test_historie_vertraegt_gleichzeitiges_lesen_und_schreiben(self) -> None:
+        from app import store
+
+        async def schreiben():
+            for i in range(40):
+                store.record([{"code": "cur_power", "value": float(i)}], [], device="gut")
+                await self.asyncio.sleep(0)
+
+        async def lesen():
+            for _ in range(40):
+                store.series("cur_power", 24, device="gut")
+                store.recent_events(10)
+                await self.asyncio.sleep(0)
+
+        async def zusammen():
+            await self.asyncio.gather(schreiben(), lesen(), schreiben())
+
+        self.asyncio.run(zusammen())      # darf schlicht nicht werfen
+
+    def test_entferntes_geraet_wird_vergessen(self) -> None:
+        self.durchlauf()
+        self.assertIn("tot", main._states)
+        geraete.entfernen("tot")
+        main.vergessen("tot")
+        self.durchlauf()
+        self.assertNotIn("tot", main._states)
+        self.assertEqual([g["id"] for g in geraete.liste()], ["gut"])
 
 
 class Diagnosebericht(unittest.TestCase):
