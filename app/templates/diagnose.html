@@ -79,7 +79,10 @@
         <tr style="border-top:1px solid var(--line)">
           <td style="padding:7px 12px 7px 0">Preisquelle</td>
           <td style="padding:7px 0">
-            {{ bericht.preise.quelle }}
+            {{ bericht.preise.quelle_klartext or bericht.preise.quelle }}
+            {% if bericht.preise.aufschlag_ct %}
+              <span class="muted">· Aufschlag {{ bericht.preise.aufschlag_ct }} ct</span>
+            {% endif %}
             {% if bericht.preise.fehler %}
               <span style="color:var(--err)">— {{ bericht.preise.fehler }}</span>
             {% endif %}

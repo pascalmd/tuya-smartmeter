@@ -375,6 +375,12 @@ def bericht(zustaende: list[dict[str, Any]], preis_stand: dict[str, Any],
         },
         "preise": {
             "quelle": preis_cfg.get("source"),
+            # Der interne Schluessel bleibt fuer die Auswertung stehen, der
+            # Klartext daneben ist der, den der Nutzer in der Oberflaeche sieht --
+            # sonst redet man in der Fehlersuche aneinander vorbei.
+            "quelle_klartext": prices.SOURCES.get(
+                preis_cfg.get("source"), {}
+            ).get("label", preis_cfg.get("source")),
             "aufschlag_ct": preis_cfg.get("markup_ct"),
             "tibber_token": _befund((config.get("tibber") or {}).get("token")),
             "letzter_abruf_vor_s": preis_stand.get("age_seconds"),
