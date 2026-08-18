@@ -85,7 +85,11 @@ def _mit_tabellen(aktion):
 
     Im Betrieb legt sie der Start an. Fehlen sie doch — weil die Datei geloescht
     wurde oder der Aufruf von woanders kommt —, ist es besser, sie still
-    nachzuziehen, als jeden Schreibvorgang scheitern zu lassen.
+    nachzuziehen, als den Zugriff scheitern zu lassen.
+
+    Gilt ausdruecklich auch fuers Lesen: Ohne das antwortet die Verlaufsseite
+    mit einem Programmfehler, wo "noch keine Messwerte" die richtige Auskunft
+    waere.
     """
     try:
         return aktion()
@@ -143,10 +147,13 @@ def series(code: str, hours: int = 24, max_points: int = 500,
     if device is not None:
         bedingung += " AND device = ?"
         werte.append(device)
-    with _lock, _connect() as conn:
-        rows = conn.execute(
-            f"SELECT ts, value FROM samples WHERE {bedingung} ORDER BY ts", werte
-        ).fetchall()
+    def lesen():
+        with _lock, _connect() as conn:
+            return conn.execute(
+                f"SELECT ts, value FROM samples WHERE {bedingung} ORDER BY ts", werte
+            ).fetchall()
+
+    rows = _mit_tabellen(lesen)
     if len(rows) <= max_points:
         return [{"ts": r[0], "value": r[1]} for r in rows]
     step = len(rows) / max_points
@@ -160,11 +167,13 @@ def recorded_codes(hours: int = 24, device: str | None = None) -> list[str]:
     if device is not None:
         bedingung += " AND device = ?"
         werte.append(device)
-    with _lock, _connect() as conn:
-        rows = conn.execute(
-            f"SELECT DISTINCT code FROM samples WHERE {bedingung} ORDER BY code", werte
-        ).fetchall()
-    return [r[0] for r in rows]
+    def lesen():
+        with _lock, _connect() as conn:
+            return conn.execute(
+                f"SELECT DISTINCT code FROM samples WHERE {bedingung} ORDER BY code", werte
+            ).fetchall()
+
+    return [r[0] for r in _mit_tabellen(lesen)]
 
 
 def recent_events(limit: int = 50, device: str | None = None) -> list[dict[str, Any]]:
@@ -181,18 +190,26 @@ def recent_events(limit: int = 50, device: str | None = None) -> list[dict[str, 
         bedingung = "WHERE device = ? OR device = ''"
         werte.append(device)
     werte.append(limit)
-    with _lock, _connect() as conn:
-        rows = conn.execute(
-            f"SELECT ts, kind, message, device FROM events {bedingung} ORDER BY ts DESC LIMIT ?",
-            werte,
-        ).fetchall()
+    def lesen():
+        with _lock, _connect() as conn:
+            return conn.execute(
+                f"SELECT ts, kind, message, device FROM events {bedingung} "
+                "ORDER BY ts DESC LIMIT ?",
+                werte,
+            ).fetchall()
+
+    rows = _mit_tabellen(lesen)
     return [{"ts": r[0], "kind": r[1], "message": r[2], "device": r[3]} for r in rows]
 
 
 def prune() -> int:
     """Alte Messwerte wegwerfen, damit die Datei nicht unbegrenzt waechst."""
     cutoff = int(time.time()) - RETENTION_DAYS * 86400
-    with _lock, _connect() as conn:
-        deleted = conn.execute("DELETE FROM samples WHERE ts < ?", (cutoff,)).rowcount
-        conn.execute("DELETE FROM events WHERE ts < ?", (cutoff,))
-    return max(deleted, 0)
+
+    def aufraeumen():
+        with _lock, _connect() as conn:
+            geloescht = conn.execute("DELETE FROM samples WHERE ts < ?", (cutoff,)).rowcount
+            conn.execute("DELETE FROM events WHERE ts < ?", (cutoff,))
+            return geloescht
+
+    return max(_mit_tabellen(aufraeumen), 0)

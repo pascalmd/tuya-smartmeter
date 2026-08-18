@@ -7,11 +7,18 @@
 {% endif %}
 
 <div class="card">
-  <h2>Ausgewähltes Gerät</h2>
-  <p style="margin:0; display:flex; align-items:center; gap:12px; flex-wrap:wrap">
-    <strong>{{ cfg.get('device_name') or 'noch keines' }}</strong>
-    <a class="btn secondary" href="/devices">Anderes Gerät wählen</a>
+  <h2>Zugang für {{ geraet.name if geraet and geraet.name else 'dieses Gerät' }}</h2>
+  <p class="muted" style="margin:0 0 12px">
+    {% if geraete_liste and geraete_liste|length > 1 %}
+      Alles auf dieser Seite — Adresse, Schlüssel, Protokoll — gehört zu
+      <strong>{{ geraet.name }}</strong>. Für ein anderes Gerät oben umschalten.
+      Die QR-Anmeldung weiter unten gilt dagegen für alle Geräte zugleich,
+      denn sie meldet das ganze Konto an.
+    {% else %}
+      Adresse, Schlüssel und Protokoll dieses Geräts.
+    {% endif %}
   </p>
+  <p style="margin:0"><a class="btn secondary" href="/devices">Geräte verwalten</a></p>
 </div>
 
 <div class="card">

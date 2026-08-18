@@ -45,6 +45,7 @@
 
 <div class="card" id="upcoming-card" style="display:none">
   <h2>Nächste Stunden</h2>
+  <div class="muted" id="upcoming-note" style="margin:-6px 0 10px"></div>
   <div id="upcoming" style="display:flex; gap:4px; align-items:flex-end; overflow-x:auto; padding-bottom:4px"></div>
 </div>
 
@@ -67,7 +68,13 @@
 </style>
 
 <script>
-const fmt = (v) => (typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits: 2}) : v);
+// true/false gehoert nicht in eine Oberflaeche -- das liest sich wie ein
+// Programmzustand, nicht wie eine Auskunft ueber das Geraet.
+const fmt = (v) => {
+  if (typeof v === 'boolean') return v ? 'ja' : 'nein';
+  if (typeof v === 'number') return v.toLocaleString('de-DE', {maximumFractionDigits: 2});
+  return v;
+};
 
 // Welches Geraet die Seite zeigt — sonst springt die Anzeige beim Aktualisieren
 // auf das erste zurueck.
@@ -282,13 +289,28 @@ async function load() {
   const up = (p.upcoming || []);
   if (up.length) {
     const max = Math.max(...up.map(u => u.ct || 0)) || 1;
+    const min = Math.min(...up.map(u => u.ct || 0));
     document.getElementById('upcoming-card').style.display = '';
-    document.getElementById('upcoming').innerHTML = up.map(u => `
-      <div class="bar-wrap" title="${u.day} ${u.hour} · ${fmt(u.ct)} ct/kWh · ${u.level_label}">
-        <div>${fmt(u.ct)}</div>
-        <div class="bar" style="height:${Math.max(8, (u.ct / max) * 90)}px"></div>
+    const hinweis = document.getElementById('upcoming-note');
+    if (hinweis) {
+      hinweis.textContent = auto.enabled
+        ? 'Kräftige Balken: In diesen Stunden würde die Automatik einschalten.'
+        : (auto.regel_aktiv
+            ? 'Dieses Gerät folgt der Regel nicht — die Markierung zeigt, was sie täte.'
+            : 'Die Automatik ist aus — die Markierung zeigt, was die Regel täte.');
+    }
+    // Wie auf der Preisseite: beschriftet werden nur die jetzige, die
+    // guenstigste und die teuerste Stunde. Eine Zahl ueber jedem Balken ist
+    // Rauschen, durch das man die Kurve nicht mehr sieht.
+    document.getElementById('upcoming').innerHTML = up.map((u, i) => {
+      const zeigen = i === 0 || u.ct === min || u.ct === max;
+      return `
+      <div class="bar-wrap" title="${u.day} ${u.hour} · ${fmt(u.ct)} ${einheit}${u.level_label ? ' · ' + u.level_label : ''}">
+        <div style="min-height:14px">${zeigen ? fmt(u.ct) : ''}</div>
+        <div class="bar${u.on ? ' on' : ''}" style="height:${Math.max(8, (u.ct / max) * 90)}px"></div>
         <div>${u.hour}</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   if (zeilen) {
@@ -302,7 +324,8 @@ async function load() {
   document.getElementById('status').innerHTML =
     `Gerät: ${s.device_name || '–'} (${s.online === false ? 'nicht erreichbar' : s.online ? 'verbunden' : 'unbekannt'}) · Zugang: <a href="/zugang">${kanalName}</a> · Abfragen: ${s.polls} (${s.failures} Fehler) ·
      Intervall: ${s.refresh_seconds} s · Dienst läuft seit ${Math.round(s.uptime_seconds / 60)} min` +
-    (s.version ? ` · Version ${s.version} vom ${s.build_date}` : '');
+    (s.version ? ` · Version ${s.version}` : '')
+    + (s.build_date && s.build_date !== 'unbekannt' ? ` vom ${s.build_date}` : '');
 }
 
 async function setSwitch(code, value) {

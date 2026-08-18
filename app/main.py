@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import automation, geraete, local, prices, sharing, store
+from . import automation, diagnose, geraete, local, prices, sharing, store
 from .config import config
 from .tibber import LEVEL_LABELS, LEVELS, TibberClient, TibberError, upcoming
 from .tuya import ENDPOINTS, TuyaClient, TuyaError, build_view
@@ -198,11 +198,11 @@ class DeviceState:
                 "currency": self.prices.get("currency", "EUR"),
                 "einheit": "ct/kWh" if self.prices.get("currency", "EUR") == "EUR"
                            else f"{self.prices.get('currency')}-Cent/kWh",
-                "upcoming": upcoming(
-                    list(self.prices.get("today") or []) + list(self.prices.get("tomorrow") or []),
-                    dt.datetime.now(dt.timezone.utc),
-                    12,
-                )
+                # Dieselbe Vorschau wie auf der Preisseite -- samt Markierung,
+                # in welcher Stunde die Regel dieses Geraet einschalten wuerde.
+                # Vorher zeigte die Uebersicht nur Preise: gleiche Balken,
+                # weniger Aussage, und zwei Ansichten, die sich widersprachen.
+                "upcoming": automation.schedule_preview(self.prices, auto, hours=12)[:12]
                 if self.prices
                 else [],
             },
@@ -1245,6 +1245,7 @@ async def devices_page(request: Request, saved: str = "", meldung: str = ""):
         request, "devices.html",
         devices=devices, error=error, quelle=quelle,
         meine=meine,
+        geraete_liste=geraete.zusammenfassung(),
         regel_aktiv=automation.settings(config.get("automation"))["enabled"],
         regel_name=automation.MODE_LABELS.get(
             automation.settings(config.get("automation"))["mode"], ""
@@ -1811,6 +1812,146 @@ async def rotate_token(request: Request):
     config.rotate_api_token()
     store.log_event("info", "API-Token neu erzeugt")
     return RedirectResponse("/settings?saved=token", status_code=303)
+
+
+# ----------------------------------------------------------------- Diagnose
+
+
+async def netzpruefung() -> dict[str, Any]:
+    """Aktiv nachsehen, was von diesem Rechner aus erreichbar ist.
+
+    Beantwortet die Fragen, die sonst per Ferndiagnose einzeln abgeklopft
+    werden muessten: Kommt DNS durch? Antwortet Tuya? Steht das Geraet im
+    Netz? Und vor allem -- geht die Uhr richtig? Eine um Minuten falsche
+    Systemzeit laesst jede Tuya-Signatur scheitern, und der Fehlertext dazu
+    ("sign invalid") deutet in eine voellig andere Richtung.
+    """
+    import socket
+
+    ergebnis: dict[str, Any] = {}
+
+    def tcp(host: str, port: int, timeout: float = 3.0) -> str:
+        beginn = time.time()
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return f"erreichbar ({round((time.time() - beginn) * 1000)} ms)"
+        except Exception as exc:
+            return f"nicht erreichbar: {type(exc).__name__}"
+
+    def dns(name: str) -> str:
+        try:
+            return ", ".join(sorted({a[4][0] for a in socket.getaddrinfo(name, None)}))
+        except Exception as exc:
+            return f"keine Aufloesung: {type(exc).__name__}"
+
+    endpunkt = ENDPOINTS.get(config.tuya.get("region", "eu"), "")
+    tuya_host = endpunkt.replace("https://", "")
+    ergebnis["tuya_endpunkt"] = endpunkt
+    ergebnis["dns"] = {
+        h: await asyncio.to_thread(dns, h)
+        for h in filter(None, [tuya_host, "api.awattar.de", "api.energy-charts.info"])
+    }
+    ergebnis["tcp"] = {}
+    if tuya_host:
+        ergebnis["tcp"][f"{tuya_host}:443"] = await asyncio.to_thread(tcp, tuya_host, 443)
+
+    # Die Geraete selbst: Port 6668 ist der lokale Tuya-Dienst.
+    for eintrag in geraete.liste():
+        ip = (eintrag.get("local") or {}).get("ip")
+        if ip:
+            ergebnis["tcp"][f"{eintrag['name']} {ip}:6668"] = await asyncio.to_thread(
+                tcp, ip, 6668
+            )
+
+    # Uhrzeitabgleich gegen eine fremde Quelle
+    try:
+        import email.utils
+
+        import httpx
+
+        async with httpx.AsyncClient(timeout=5) as http:
+            antwort = await http.head("https://api.awattar.de/v1/marketdata")
+        fremd = antwort.headers.get("date")
+        if fremd:
+            fremd_ts = email.utils.parsedate_to_datetime(fremd).timestamp()
+            abweichung = round(time.time() - fremd_ts, 1)
+            ergebnis["uhrzeit"] = {
+                "abweichung_s": abweichung,
+                "bewertung": "in Ordnung" if abs(abweichung) < 60 else
+                             "ZU GROSS — Tuya lehnt Signaturen ab",
+            }
+    except Exception as exc:
+        ergebnis["uhrzeit"] = {"fehler": f"{type(exc).__name__}: {exc}"[:120]}
+
+    return ergebnis
+
+
+def diagnose_daten(netz: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Alles zusammentragen, was zur Fehlersuche taugt."""
+    zustaende = []
+    for st in alle_zustaende():
+        daten = st.as_dict()
+        daten["started_at"] = st.started_at
+        daten["spezifikation_geladen"] = bool(st.spec)
+        # Das Innenleben des Pollers -- genau die Werte, die sonst nur im
+        # Speicher stehen und bei einer Ferndiagnose fehlen.
+        daten["poller_intern"] = {
+            "backoff_bis": st.backoff or 0,
+            "an_seit": st.on_since,
+            "aus_seit": st.off_since,
+            "zuletzt_gesehen": st.last_seen,
+            "erwarteter_zustand": st.expected_state,
+            "laufender_block": sorted(st.block) if st.block else [],
+            "spezifikation_alter_s": round(time.time() - st.spec_fetched_at)
+            if st.spec_fetched_at else None,
+            "letzte_aufzeichnung_vor_s": round(time.time() - st.last_record_ts)
+            if st.last_record_ts else None,
+        }
+        zustaende.append(daten)
+    return diagnose.bericht(
+        zustaende=zustaende,
+        preis_stand={
+            "age_seconds": round(time.time() - preise.ts, 1) if preise.ts else None,
+            "error": preise.error,
+            "currency": preise.data.get("currency"),
+            "stunden_heute": len(preise.data.get("today") or []),
+            "stunden_morgen": len(preise.data.get("tomorrow") or []),
+        },
+        version={"version": VERSION, "gebaut_am": BUILD_DATE, "stand": GIT_COMMIT},
+        trial=trial_status(),
+        netz=netz,
+    )
+
+
+@app.get("/diagnose", response_class=HTMLResponse)
+async def diagnose_seite(request: Request):
+    """Ein Bericht zum Weitergeben, wenn etwas nicht laeuft."""
+    if (redirect := guard(request)) is not None:
+        return redirect
+    daten = diagnose_daten(netz=await netzpruefung())
+    import json as _json
+
+    return page(
+        request, "diagnose.html",
+        bericht=daten,
+        als_text=_json.dumps(daten, indent=2, ensure_ascii=False),
+    )
+
+
+@app.get("/diagnose.json")
+async def diagnose_json(request: Request, _: None = Depends(require_api_access)):
+    """Derselbe Bericht als Datei zum Anhaengen an eine Nachricht."""
+    from fastapi.responses import Response
+    import json as _json
+
+    name = f"tuya-smartmeter-diagnose-{dt.date.today().isoformat()}.json"
+    return Response(
+        content=_json.dumps(
+            diagnose_daten(netz=await netzpruefung()), indent=2, ensure_ascii=False
+        ),
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 # -------------------------------------------------------------------- JSON-API

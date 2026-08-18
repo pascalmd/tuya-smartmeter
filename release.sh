@@ -48,7 +48,20 @@ if ! "$PYTHON" -c "import httpx" 2>/dev/null; then
   fehler "Die Testumgebung fehlt. Mit PYTHON=/pfad/zum/python erneut aufrufen,
          oder: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
 fi
-"$PYTHON" tests/test_logic.py 2>&1 | tail -3
+# Alle drei Ebenen, und ein Fehlschlag bricht ab. Vorher lief nur die
+# Schaltlogik -- die war jedes Mal in Ordnung, waehrend die Oberflaeche
+# Zustaende falsch anzeigte. Genau die pruefen test_ui und test_browser.
+for pruefung in tests/test_logic.py tests/test_ui.py tests/test_browser.py; do
+  [ -f "$pruefung" ] || continue
+  printf '  %-24s' "$(basename "$pruefung")"
+  if ausgabe=$("$PYTHON" "$pruefung" 2>&1); then
+    echo "$(echo "$ausgabe" | grep -oE 'Ran [0-9]+ tests?' | tail -1) — bestanden"
+  else
+    echo
+    echo "$ausgabe" | grep -vE "INFO|httpx|Deprecation|warnings.warn" | tail -25
+    fehler "$(basename "$pruefung") fehlgeschlagen"
+  fi
+done
 ok "bestanden"
 
 info "Auf $BUILD_HOST uebertragen"

@@ -53,9 +53,12 @@
     background: var(--accent); color: var(--accent-fg); border: 0;
     border-radius: 8px; cursor: pointer; text-decoration: none;
   }
-  button.secondary {
+  /* Gilt fuer Knoepfe UND Links im Knopfgewand -- sonst sieht ein
+     "Anderes Geraet waehlen" aus wie die Hauptaktion der Seite. */
+  button.secondary, .btn.secondary {
     background: transparent; color: var(--fg); border: 1px solid var(--line);
   }
+  a.btn.secondary:hover { background: var(--bg); text-decoration: none; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .msg { padding: 11px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 14px; }
   .msg.err { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }

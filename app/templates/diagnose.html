@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Diagnose{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>Bericht zum Weitergeben</h2>
+  <p class="muted" style="margin-top:0">
+    Wenn etwas nicht läuft: Diesen Bericht herunterladen und der Person
+    schicken, die dir hilft. Darin steht alles über den Zustand der App —
+    Version, Zugangswege, Geräte, Regel, die letzten Ereignisse.
+  </p>
+
+  <div class="msg ok" style="margin-bottom:14px">
+    <strong>Es sind keine Zugangsdaten enthalten.</strong> Von Access Secret,
+    Schlüsseln und Token steht nur da, <em>ob</em> sie gesetzt sind und wie lang
+    sie sind — nie ihr Inhalt. Messwerte fehlen ebenfalls; man sieht also nicht,
+    wann jemand zu Hause war.
+  </div>
+
+  <p style="display:flex; gap:10px; flex-wrap:wrap; margin:0">
+    <a class="btn" href="/diagnose.json" download>Als Datei herunterladen</a>
+    <button class="secondary" type="button" onclick="kopieren(this)">In die Zwischenablage</button>
+    <a class="btn secondary" href="/diagnose">Neu erzeugen</a>
+  </p>
+</div>
+
+{% set g = bericht.get('geraete', []) %}
+<div class="card">
+  <h2>Auf einen Blick</h2>
+  <div class="scroll">
+    <table style="width:100%; border-collapse:collapse; font-size:14px">
+      <tbody>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0; width:38%">Version</td>
+          <td style="padding:7px 0">
+            {{ bericht.app.version }}{% if bericht.app.gebaut_am and bericht.app.gebaut_am != 'unbekannt' %}
+            vom {{ bericht.app.gebaut_am }}{% endif %}
+          </td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0">Geräte</td>
+          <td style="padding:7px 0">
+            {% for d in g %}
+              {{ d.name }} <span class="muted">({{ d.stand.weg }}{% if d.stand.online is false %},
+              offline{% endif %}{% if not d.aktiv %}, ruht{% endif %})</span>{% if not loop.last %} · {% endif %}
+            {% else %}<span class="muted">keine</span>{% endfor %}
+          </td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0">Automatik</td>
+          <td style="padding:7px 0">
+            {% if bericht.automatik.enabled %}{{ bericht.automatik.modus_klartext }}
+            {% else %}<span class="muted">ausgeschaltet</span>{% endif %}
+          </td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0">Preisquelle</td>
+          <td style="padding:7px 0">
+            {{ bericht.preise.quelle }}
+            {% if bericht.preise.fehler %}
+              <span style="color:var(--err)">— {{ bericht.preise.fehler }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0">Aufzeichnung</td>
+          <td style="padding:7px 0">
+            {{ bericht.aufzeichnung.messpunkte or 0 }} Messpunkte,
+            {{ bericht.aufzeichnung.datei_kb or 0 }} KB
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  {% set fehlerhaft = g | selectattr('stand.fehler') | list %}
+  {% if fehlerhaft %}
+  <div class="msg err" style="margin:14px 0 0">
+    <strong>Gemeldete Fehler:</strong>
+    <ul style="margin:6px 0 0; padding-left:20px">
+      {% for d in fehlerhaft %}<li>{{ d.name }}: {{ d.stand.fehler }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Vollständiger Bericht</h2>
+  <p class="muted" style="margin-top:0">
+    Das ist der Inhalt der Datei — hier nur zum Nachlesen, damit du siehst, was
+    du weitergibst.
+  </p>
+  <div class="scroll" style="max-height:460px; overflow:auto; background:var(--bg);
+              border:1px solid var(--line); border-radius:8px; padding:12px">
+    <pre id="bericht" style="margin:0; font-size:12px; line-height:1.45;
+         font-family:ui-monospace, Menlo, Consolas, monospace">{{ als_text }}</pre>
+  </div>
+</div>
+
+<script>
+async function kopieren(knopf) {
+  const text = document.getElementById('bericht').textContent;
+  const alt = knopf.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    knopf.textContent = 'Kopiert';
+  } catch (e) {
+    // Ohne HTTPS verweigern manche Browser die Zwischenablage — dann markieren.
+    const bereich = document.createRange();
+    bereich.selectNodeContents(document.getElementById('bericht'));
+    const auswahl = window.getSelection();
+    auswahl.removeAllRanges();
+    auswahl.addRange(bereich);
+    knopf.textContent = 'Markiert — jetzt Strg+C';
+  }
+  setTimeout(() => { knopf.textContent = alt; }, 4000);
+}
+</script>
+{% endblock %}

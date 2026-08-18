@@ -93,8 +93,10 @@
             </td>
           </tr>
           <tr>
-            <td colspan="5" style="padding:0 0 12px">
-              <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center">
+            <td colspan="5" style="padding:0 0 14px">
+              <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;
+                          justify-content:space-between">
+                <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center">
                 <form method="post" action="/devices/umbenennen"
                       style="display:flex; gap:6px; align-items:center">
                   <input type="hidden" name="device_id" value="{{ g.device_id }}">
@@ -125,6 +127,8 @@
                     Messwerte aufzeichnen
                   </label>
                 </form>
+
+                </div>
 
                 <form method="post" action="/devices/entfernen"
                       onsubmit="return confirm('{{ g.device_name or g.device_id }} wirklich entfernen? Die aufgezeichneten Messwerte bleiben erhalten.')">
