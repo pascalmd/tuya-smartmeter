@@ -65,6 +65,17 @@ class TibberClient:
     async def _query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         if not self.token:
             raise TibberError("Kein Tibber-Token hinterlegt")
+        # Der Token wandert in eine HTTP-Kopfzeile, und die vertraegt nur
+        # ASCII. Steht dort etwas anderes -- ein Wort, ein Name, irgendetwas
+        # mit Umlaut --, scheitert schon das Absenden, und die Meldung
+        # ("ascii codec can't encode character") sagt niemandem etwas.
+        if not self.token.isascii():
+            falsch = next(c for c in self.token if not c.isascii())
+            raise TibberError(
+                f"Der Tibber-Token enthält »{falsch}«. Ein echter Token besteht "
+                "nur aus Buchstaben, Ziffern, Bindestrichen und Unterstrichen — "
+                "hier ist offenbar etwas anderes ins Feld geraten."
+            )
         async with httpx.AsyncClient(timeout=self.timeout) as http:
             resp = await http.post(
                 API_URL,

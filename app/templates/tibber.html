@@ -10,7 +10,8 @@
 </div>
 
 {% if error %}<div class="msg err">{{ error }}</div>{% endif %}
-{% if saved == 'error' %}
+{% if meldung %}<div class="msg err">{{ meldung }}</div>{% endif %}
+{% if saved == 'error' and not meldung %}
   <div class="msg err">
     <strong>Gespeichert, aber der Preisabruf hat nicht geklappt.</strong>
     Meist stimmt der Token nicht oder der Vertrag liefert keine Stundenpreise.

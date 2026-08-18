@@ -630,6 +630,67 @@ class ZugangsdatenEntfernen(unittest.TestCase):
                 self.assertLess(self.client.get(pfad, follow_redirects=False).status_code, 400)
 
 
+class UnbrauchbareEingaben(unittest.TestCase):
+    """Was Menschen in Felder tippen, muss verstaendlich zurueckkommen.
+
+    Anlass: Im Tibber-Feld standen sieben Zeichen mit einem Umlaut. Die App
+    nahm das an, und beim naechsten Preisabruf erschien
+    "'ascii' codec can't encode character '\xf6' in position 9" -- eine
+    Meldung, die niemandem sagt, was zu tun ist. Der Token wandert in eine
+    HTTP-Kopfzeile, und die vertraegt nur ASCII.
+    """
+
+    def setUp(self) -> None:
+        from fastapi.testclient import TestClient
+
+        config.set_admin_password("eingabe12345")
+        config.set("setup_done", True)
+        config.set("tibber", {"token": "", "home_id": "", "home_label": ""})
+        main.logged_in = lambda request: True
+        self.client = TestClient(main.app)
+
+    def tearDown(self) -> None:
+        self.client.close()
+
+    def test_umlaut_im_token_wird_abgelehnt(self) -> None:
+        antwort = self.client.post("/tibber", data={"token": "söhne12"},
+                                   follow_redirects=False)
+        self.assertEqual(antwort.status_code, 303)
+        self.assertIn("meldung=", antwort.headers["location"])
+        self.assertEqual(config.get("tibber")["token"], "", "Unbrauchbares darf nicht in die Konfiguration")
+
+    def test_zu_kurzer_token_wird_abgelehnt(self) -> None:
+        self.client.post("/tibber", data={"token": "kurz"}, follow_redirects=False)
+        self.assertEqual(config.get("tibber")["token"], "")
+
+    def test_gueltiger_token_wird_angenommen(self) -> None:
+        self.client.post("/tibber", data={"token": "A" * 44}, follow_redirects=False)
+        self.assertEqual(len(config.get("tibber")["token"]), 44)
+
+    def test_abruf_meldet_klartext_statt_kodierungsfehler(self) -> None:
+        import asyncio
+
+        from app.tibber import TibberClient, TibberError
+
+        with self.assertRaises(TibberError) as fehler:
+            asyncio.run(TibberClient(token="söhne12").list_homes())
+        text = str(fehler.exception)
+        self.assertIn("ö", text)
+        self.assertNotIn("codec", text)
+        self.assertNotIn("ordinal", text)
+
+    def test_preisabruf_reicht_die_klare_meldung_durch(self) -> None:
+        import asyncio
+
+        from app import prices
+
+        config.set("tibber", {"token": "söhne12", "home_id": "x"})
+        with self.assertRaises(prices.PriceError) as fehler:
+            asyncio.run(prices.fetch({"source": "tibber", "markup_ct": 0.0},
+                                     config.get("tibber")))
+        self.assertNotIn("codec", str(fehler.exception))
+
+
 class Dauerbetrieb(unittest.TestCase):
     """Faelle, die kein Formular abdeckt und die trotzdem taeglich vorkommen."""
 

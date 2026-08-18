@@ -1696,7 +1696,7 @@ async def prices_save(
 
 
 @app.get("/tibber", response_class=HTMLResponse)
-async def tibber_page(request: Request, saved: str = ""):
+async def tibber_page(request: Request, saved: str = "", meldung: str = ""):
     if (redirect := guard(request)) is not None:
         return redirect
     tibber = config.get("tibber") or {}
@@ -1707,7 +1707,8 @@ async def tibber_page(request: Request, saved: str = ""):
             homes = await tibber_client().list_homes()
         except Exception as exc:
             error = str(exc)
-    return page(request, "tibber.html", tibber=tibber, homes=homes, error=error, saved=saved)
+    return page(request, "tibber.html", tibber=tibber, homes=homes, error=error,
+                saved=saved, meldung=meldung)
 
 
 @app.post("/tibber")
@@ -1719,6 +1720,21 @@ async def tibber_save(
 ):
     require_login(request)
     tibber = dict(config.get("tibber") or {})
+
+    # Offensichtlich Unbrauchbares gar nicht erst speichern: Ein Tibber-Token
+    # ist eine lange ASCII-Zeichenfolge. Wird stattdessen ein Wort eingetippt,
+    # faellt das sonst erst beim Abruf auf -- und dann als Kodierungsfehler.
+    eingabe = token.strip()
+    if eingabe and not eingabe.isascii():
+        falsch = next(c for c in eingabe if not c.isascii())
+        return RedirectResponse(
+            f"/tibber?saved=error&meldung=Der+Token+enthält+»{falsch}«+—+"
+            "ein+echter+Token+besteht+nur+aus+Buchstaben,+Ziffern+und+Bindestrichen", 303)
+    if eingabe and len(eingabe) < 20:
+        return RedirectResponse(
+            f"/tibber?saved=error&meldung=Der+Token+ist+mit+{len(eingabe)}+Zeichen+zu+kurz+—+"
+            "Tibber-Token+sind+deutlich+länger.+Vollständig+kopiert%3F", 303)
+
     # Ein leeres Feld heisst hier "unveraendert" -- zum Loeschen gibt es den
     # eigenen Knopf. Ohne den kam man aus einem falsch eingetippten Token nicht
     # mehr heraus: Das Feld liess sich nicht leeren, und leer abschicken
