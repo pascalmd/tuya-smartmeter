@@ -11,10 +11,11 @@
   </p>
 
   <div class="msg ok" style="margin-bottom:14px">
-    <strong>Es sind keine Zugangsdaten enthalten.</strong> Von Access Secret,
-    Schlüsseln und Token steht nur da, <em>ob</em> sie gesetzt sind und wie lang
-    sie sind — nie ihr Inhalt. Messwerte fehlen ebenfalls; man sieht also nicht,
-    wann jemand zu Hause war.
+    <strong>Was der Bericht nicht enthält:</strong> keine Zugangsdaten — von
+    Access Secret, Schlüsseln und Token steht nur da, <em>ob</em> sie gesetzt
+    sind und wie lang sie sind, nie ihr Inhalt. Und <strong>keinen einzigen
+    Messwert</strong>: Wie viel Strom wann geflossen ist, bleibt auf diesem
+    Server. Man sieht dem Bericht also nicht an, wann jemand zu Hause war.
   </div>
 
   <p style="display:flex; gap:10px; flex-wrap:wrap; margin:0">
@@ -33,8 +34,30 @@
         <tr style="border-top:1px solid var(--line)">
           <td style="padding:7px 12px 7px 0; width:38%">Version</td>
           <td style="padding:7px 0">
-            {{ bericht.app.version }}{% if bericht.app.gebaut_am and bericht.app.gebaut_am != 'unbekannt' %}
-            vom {{ bericht.app.gebaut_am }}{% endif %}
+            <strong>{{ bericht.app.version }}</strong>{% if bericht.app.gebaut_am and bericht.app.gebaut_am != 'unbekannt' %}
+            vom {{ bericht.app.gebaut_am }}{% endif %}{% if bericht.app.stand and bericht.app.stand != 'unbekannt' %}
+            · Stand <code>{{ bericht.app.stand }}</code>{% endif %}
+            {% if bericht.app.laeuft_seit_minuten is not none %}
+              <span class="muted">· läuft seit
+              {% if bericht.app.laeuft_seit_minuten >= 60 %}
+                {{ (bericht.app.laeuft_seit_minuten // 60) }} h
+                {{ (bericht.app.laeuft_seit_minuten % 60) }} min
+              {% else %}{{ bericht.app.laeuft_seit_minuten }} min{% endif %}</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr style="border-top:1px solid var(--line)">
+          <td style="padding:7px 12px 7px 0">Umgebung</td>
+          <td style="padding:7px 0">
+            {% if bericht.laufzeit.im_container %}Container{% else %}ohne Container{% endif %}
+            · Python {{ bericht.umgebung.python }}
+            · Zeitzone {{ bericht.umgebung.zeitzone }}
+            {% if bericht.netz and bericht.netz.uhrzeit and bericht.netz.uhrzeit.abweichung_s is defined %}
+              · Uhr {{ bericht.netz.uhrzeit.abweichung_s }} s
+              {% if 'ZU GROSS' in (bericht.netz.uhrzeit.bewertung or '') %}
+                <span style="color:var(--err)">abweichend — Tuya lehnt Signaturen ab</span>
+              {% endif %}
+            {% endif %}
           </td>
         </tr>
         <tr style="border-top:1px solid var(--line)">
@@ -63,10 +86,12 @@
           </td>
         </tr>
         <tr style="border-top:1px solid var(--line)">
-          <td style="padding:7px 12px 7px 0">Aufzeichnung</td>
+          <td style="padding:7px 12px 7px 0">Aufgezeichnete Daten</td>
           <td style="padding:7px 0">
-            {{ bericht.aufzeichnung.messpunkte or 0 }} Messpunkte,
-            {{ bericht.aufzeichnung.datei_kb or 0 }} KB
+            <strong>bleiben hier</strong> — auf diesem Server liegen
+            {{ '{:,}'.format(bericht.aufzeichnung.messpunkte or 0)|replace(',', '.') }}
+            Messpunkte ({{ bericht.aufzeichnung.datei_kb or 0 }} KB).
+            <span class="muted">Im Bericht steht davon nur diese Zahl.</span>
           </td>
         </tr>
       </tbody>

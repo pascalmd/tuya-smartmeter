@@ -389,6 +389,11 @@ def bericht(zustaende: list[dict[str, Any]], preis_stand: dict[str, Any],
         },
         "geraete": geraeteliste,
         "aufzeichnung": {
+            # Steht bewusst als erstes Feld: Wer den Bericht ueberfliegt, sieht
+            # Zahlen wie "13076 Messpunkte" und haelt sie leicht fuer den
+            # Inhalt. Enthalten ist nur der Umfang.
+            "hinweis": "nur Umfang und Namen der Groessen — die Messwerte "
+                       "selbst sind NICHT Teil dieses Berichts",
             "intervall_s": config.get("history_seconds"),
             "abfrageintervall_s": config.get("refresh_seconds"),
             "aufbewahrung_tage": store.RETENTION_DAYS,
