@@ -3,9 +3,10 @@
 {% block content %}
 <div class="card">
   <h2>Willkommen</h2>
-  <p class="muted">
-    Hier wird die Verbindung zur Tuya-Cloud eingerichtet. Danach folgen Gerät,
-    Strompreise und die Automatik. Alle Angaben bleiben auf diesem Server.
+  <p class="muted" style="margin-bottom:0">
+    Zuerst nur ein Passwort für diese Oberfläche. Alles andere — Zugang zum
+    Gerät, Strompreise, Automatik — folgt danach Schritt für Schritt. Alle
+    Angaben bleiben auf diesem Server.
   </p>
 </div>
 
@@ -34,15 +35,31 @@
   </div>
 
   <div class="card">
-    <h2>Tuya-Cloud</h2>
-    <div class="msg warn">
-      Wichtig: Hier gehören <strong>nicht</strong> E-Mail und Passwort der Smart-Life-App hin.
-      Tuya erlaubt fremden Programmen den Zugriff nur über ein kostenloses Entwickler-Projekt.
-      Die Anleitung dafür steht unten.
+    <h2>Wie die App an dein Gerät kommt</h2>
+    <div class="msg ok">
+      <strong>Dafür musst du hier nichts eintragen.</strong> Gleich nach dem
+      Anmelden führt dich die App durch die <strong>QR-Anmeldung</strong>: Du
+      scannst einen Code mit der Smart-Life-App, fertig. Kein Entwicklerkonto,
+      keine Zeichenketten, kein Ablaufdatum. Zwei Minuten.
     </div>
+    <p class="muted" style="margin-bottom:0">
+      Hier gehören <strong>nicht</strong> E-Mail und Passwort der Smart-Life-App
+      hin — die braucht die App nie.
+    </p>
+  </div>
+
+  <details class="card" style="cursor:default">
+    <summary style="cursor:pointer; font-weight:650; font-size:15px">
+      Ich habe schon ein Tuya-Entwicklerprojekt (optional)
+    </summary>
+    <p class="muted" style="margin-top:12px">
+      Nur für den Fall, dass du Access ID und Secret bereits hast. Sonst
+      überspringen — die QR-Anmeldung kann alles, was dieser Weg kann, und
+      läuft nicht nach einem Monat ab.
+    </p>
 
     <label for="client_id">Access ID / Client ID</label>
-    <input type="text" id="client_id" name="client_id" required autocomplete="off"
+    <input type="text" id="client_id" name="client_id" autocomplete="off"
            spellcheck="false" value="{{ client_id|default('', true) }}">
 
     <label for="client_secret">Access Secret / Client Secret
@@ -51,7 +68,7 @@
         Passwortmanager es nicht für ein Anmeldefeld hält.
       </div>
     </label>
-    <input type="text" id="client_secret" name="client_secret" required
+    <input type="text" id="client_secret" name="client_secret"
            autocomplete="off" spellcheck="false" style="font-family: ui-monospace, monospace"
            data-bwignore="1" data-lpignore="true" data-1p-ignore data-form-type="other">
     <div class="hint" id="secret_count"></div>
@@ -69,9 +86,13 @@
       <option value="in"      {% if sel == 'in' %}selected{% endif %}>India</option>
     </select>
 
-    <p style="margin-top:18px">
-      <button type="submit">Verbindung prüfen und weiter</button>
-    </p>
+  </details>
+
+  <div class="card" style="display:flex; align-items:center; gap:14px; flex-wrap:wrap">
+    <button type="submit">Weiter</button>
+    <span class="muted" style="margin:0">
+      Als Nächstes: Zugang zum Gerät per QR-Code.
+    </span>
   </div>
 </form>
 
@@ -96,8 +117,16 @@
   }
 </script>
 
-<div class="card">
-  <h2>Wie komme ich an Access ID und Secret?</h2>
+<details class="card">
+  <summary style="cursor:pointer; font-weight:650; font-size:15px">
+    Wie komme ich an Access ID und Secret? (nur für den Fall, dass du sie brauchst)
+  </summary>
+  <p class="muted" style="margin-top:12px">
+    <strong>iot.tuya.com ist ein eigenes Konto</strong>, getrennt von der
+    Smart-Life-App — dein App-Login funktioniert dort nicht. Deine Geräte musst
+    du deswegen trotzdem nicht neu einrichten. Und der ganze Weg ist nur nötig,
+    wenn die QR-Anmeldung bei dir nicht funktioniert.
+  </p>
   <ol class="steps">
     <li>Auf <a href="https://iot.tuya.com" target="_blank" rel="noopener"><code>iot.tuya.com</code></a> registrieren (kostenlos).</li>
     <li>Links <strong>Cloud → Development → Create Cloud Project</strong>. Data Center: <strong>Central Europe</strong>.</li>
@@ -106,8 +135,10 @@
     <li>Im Reiter <strong>Devices → Link App Account</strong> per QR-Code das Smart-Life-/Tuya-App-Konto verknüpfen. Erst dann sieht dieses Programm den Zähler.</li>
   </ol>
   <p class="muted">
-    Hinweis: Tuya befristet neue Projekte auf einen Testzeitraum. Läuft er ab, lässt er sich
-    im Projekt unter „Service → Extend Trial" kostenlos verlängern.
+    Hinweis: Tuya befristet neue Projekte auf einen Testzeitraum. Läuft er ab,
+    lässt er sich unter <em>Service API → IoT Core → View Details</em> mit
+    <em>Extend Trial Period</em> kostenlos verlängern — das ist ein Antrag, den
+    Tuya prüft, kein Klick.
   </p>
-</div>
+</details>
 {% endblock %}

@@ -492,6 +492,74 @@ class FormularDurchlauf(unittest.TestCase):
         self.assertIn("12.5", self.client.get("/preisquelle").text)
 
 
+class Ersteinrichtung(unittest.TestCase):
+    """Der erste Bildschirm entscheidet, ob jemand die App ueberhaupt nutzt.
+
+    Anlass: Er verlangte Access ID und Secret als Pflichtfelder -- waehrend die
+    Anleitung im selben Atemzug erklaerte, dass man kein Entwicklerkonto
+    braucht. Wer der Anleitung folgte, kam nicht weiter und legte sich im
+    Zweifel ein zweites Tuya-Konto an. Genau so ist es passiert.
+    """
+
+    def setUp(self) -> None:
+        from fastapi.testclient import TestClient
+
+        config.set("setup_done", False)
+        config.set_tuya("", "", "eu")
+        geraete.speichern([])
+        main._states.clear()
+        self.client = TestClient(main.app)
+
+    def tearDown(self) -> None:
+        self.client.close()
+        config.set("setup_done", True)
+
+    def test_nur_das_passwort_ist_pflicht(self) -> None:
+        seite = self.client.get("/setup").text
+        pflicht = re.findall(r'name="([a-z_0-9]+)"[^>]*required', seite)
+        self.assertEqual(sorted(pflicht), ["password", "password2"])
+
+    def test_einrichtung_ohne_entwicklerprojekt(self) -> None:
+        antwort = self.client.post("/setup", data={"password": "geheim123",
+                                                   "password2": "geheim123"},
+                                   follow_redirects=False)
+        self.assertEqual(antwort.status_code, 303)
+        self.assertTrue(config.setup_done)
+        self.assertFalse(config.tuya.get("client_id"))
+        # Weiter geht es dort, wo man den Zugang einrichtet
+        self.assertEqual(antwort.headers["location"], "/zugang")
+
+    def test_qr_anmeldung_wird_auf_dem_ersten_bildschirm_genannt(self) -> None:
+        seite = self.client.get("/setup").text
+        self.assertIn("QR-Anmeldung", seite)
+        self.assertIn("<details", seite, "Das Entwicklerprojekt gehoert eingeklappt")
+
+    def test_halbe_zugangsdaten_werden_abgelehnt(self) -> None:
+        antwort = self.client.post("/setup", data={
+            "password": "geheim123", "password2": "geheim123",
+            "client_id": "nur-die-id"}, follow_redirects=False)
+        self.assertEqual(antwort.status_code, 200)      # bleibt auf der Seite
+        self.assertIn("gehören zusammen", antwort.text)
+        self.assertFalse(config.setup_done)
+
+    def test_zugangsseite_ohne_geraet(self) -> None:
+        self.client.post("/setup", data={"password": "geheim123",
+                                         "password2": "geheim123"},
+                         follow_redirects=False)
+        seite = self.client.get("/zugang").text
+        self.assertIn("Noch kein Gerät übernommen", seite)
+        self.assertIn("QR-Anmeldung", seite)
+
+    def test_alle_seiten_ohne_cloud_erreichbar(self) -> None:
+        self.client.post("/setup", data={"password": "geheim123",
+                                         "password2": "geheim123"},
+                         follow_redirects=False)
+        for pfad in SEITEN + ["/diagnose"]:
+            with self.subTest(pfad=pfad):
+                antwort = self.client.get(pfad, follow_redirects=False)
+                self.assertLess(antwort.status_code, 400, f"{pfad}: {antwort.status_code}")
+
+
 class Dauerbetrieb(unittest.TestCase):
     """Faelle, die kein Formular abdeckt und die trotzdem taeglich vorkommen."""
 

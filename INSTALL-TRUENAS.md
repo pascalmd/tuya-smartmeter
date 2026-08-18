@@ -4,7 +4,8 @@ Diese Anleitung ist für Leute gedacht, die TrueNAS bedienen können, aber keine
 Docker-Kommandos tippen wollen. Alles läuft über die TrueNAS-Oberfläche und
 danach über die Weboberfläche der App selbst.
 
-Rechne mit etwa 30 Minuten, davon 20 für die Tuya-Anmeldung.
+Rechne mit etwa 15 Minuten. Der größte Teil davon ist die Installation in
+TrueNAS; die Anmeldung am Tuya-Konto dauert zwei Minuten (QR-Code scannen).
 
 ---
 
@@ -37,7 +38,7 @@ Rechne mit etwa 30 Minuten, davon 20 für die Tuya-Anmeldung.
 | TrueNAS SCALE 24.10 oder neuer | ältere Versionen haben das neue Apps-System (Docker) noch nicht. Getestet mit 25.10 „Goldeye" |
 | Tuya-/Smart-Life-Konto | das Konto, in dem der Zähler schon eingerichtet ist |
 | Preisquelle | Börsenpreise gehen ohne Konto (aWATTar, Energy-Charts). Für den echten Endkundenpreis: Tibber-Konto mit aktivem Vertrag |
-| ~15 Minuten Geduld bei Tuya | die Entwickler-Anmeldung ist etwas sperrig |
+| Ein Handy mit der Smart-Life-App | für die QR-Anmeldung — zwei Minuten, kein Entwicklerkonto |
 
 ---
 
@@ -54,8 +55,9 @@ funktioniert. Du richtest **einen** ein — am besten den ersten.
 
 ### Weg A — QR-Anmeldung (empfohlen)
 
-Das machst du **nach** der Installation, in der Weboberfläche der App unter
-**Zugang**. Hier nur, damit du weißt, was kommt:
+Das machst du **nach** der Installation — die App führt dich direkt nach dem
+Passwort dorthin. Später erreichbar unter *Einstellungen → Zugang einrichten*.
+Hier nur, damit du weißt, was kommt:
 
 1. In der **Smart-Life-App**: *Ich* → Zahnrad oben rechts → *Konto und
    Sicherheit*. Dort steht ein **Benutzercode** (*User Code*) — eine kurze
@@ -264,14 +266,19 @@ http://<IP-deines-TrueNAS>:8099
 Dann führt sie dich durch vier Schritte (weitere Geräte kommen später dazu,
 siehe Teil 6):
 
-1. **Passwort festlegen** — damit meldest du dich künftig hier an.
-   Dazu Access ID und Access Secret von oben eintragen, Rechenzentrum
-   *Central Europe*. Die App prüft die Daten sofort.
-2. **Gerät übernehmen** — die Liste kommt aus deinem Tuya-Konto. Den Zähler
-   anklicken. Weitere Geräte — eine Schaltsteckdose etwa — kannst du später
-   unter *Einstellungen → Geräte* dazunehmen; jedes bekommt seine eigene Regel.
-3. **Preisquelle wählen** — Börsenpreise ohne Konto, oder Tibber mit Token.
-4. **Automatik einstellen** — siehe unten.
+1. **Passwort festlegen** — mehr wird auf diesem Bildschirm nicht verlangt.
+   Es ist ein neues Passwort für diese Oberfläche und hat mit deinen anderen
+   Konten nichts zu tun. (Wer bereits ein Entwicklerprojekt hat, kann Access ID
+   und Secret hier eintragen — eingeklappt unter *Ich habe schon ein
+   Tuya-Entwicklerprojekt*. Alle anderen überspringen das.)
+2. **QR-Anmeldung** — direkt danach landest du auf der Zugangsseite: Benutzercode
+   aus der Smart-Life-App eintragen, QR-Code erzeugen, mit dem Handy scannen,
+   bestätigen. Das ist Weg A aus Teil 1.
+3. **Gerät übernehmen** — jetzt kennt die App dein Konto und zeigt alle Geräte.
+   Den Zähler anklicken. Weitere Geräte — eine Schaltsteckdose etwa — kannst du
+   später unter *Einstellungen → Geräte* dazunehmen.
+4. **Preisquelle wählen** — Börsenpreise ohne Konto, oder Tibber mit Token.
+   Danach **Automatik einstellen**, siehe unten.
 
 Danach läuft die App dauerhaft weiter, auch wenn du den Browser schließt.
 
@@ -362,11 +369,11 @@ mit ihrem Zustand und je einem Ein/Aus-Knopf untereinander; **Verlauf** und
 | Menüpunkt heißt anders als hier beschrieben | Tuya und TrueNAS benennen ihre Menüs häufig um. Nach dem Schlüsselwort suchen („Link", „Custom"), nicht nach dem genauen Wortlaut |
 | „clientId is invalid" | Access ID oder Secret vertippt, oder falsches Rechenzentrum |
 | Geräteliste ist leer | „Link App Account" fehlt (Teil 1, Schritt 5), oder App-Konto liegt in einer anderen Region |
-| „No permissions" / Code 1106 | Im Tuya-Projekt fehlt eine der drei APIs, oder der Testzeitraum ist abgelaufen |
+| „No permissions" / Code 1106 | Meist gehört das Gerät nicht zum Projekt (*Devices → Link App Account*). Sonst fehlt eine der drei APIs, oder der Testzeitraum ist abgelaufen. Die Meldung in der App nennt das betroffene Gerät |
 | Tibber meldet 401 | Token abgelaufen — auf developer.tibber.com neu erzeugen |
 | Preise fehlen bei aWATTar | Die Preise für morgen kommen erst nachmittags gegen 14 Uhr |
 | Preise fehlen, Rest läuft | Vertrag ohne stündliche Preise, oder falsches Zuhause ausgewählt |
-| Seite nicht erreichbar | Port in TrueNAS geprüft? Manche Ports sind belegt — dann Node Port ändern |
+| Seite nicht erreichbar | Port in TrueNAS geprüft? Manche Ports sind belegt — dann beim YAML-Weg die erste Zahl in `"8099:8099"` ändern, beim Formular den **Host Port** |
 | Nach Neustart alles weg | Der `/config`-Ordner war nicht dauerhaft eingebunden |
 | Steckdose lässt sich nicht schalten | Meldet sie einen Ausgang? Auf der Übersicht muss ein Schalter erscheinen. Fehlt er, ist das Gerät vermutlich gar nicht schaltbar (reiner Sensor) |
 | Ein Gerät ist dauernd „offline" | Wenn es noch nicht angeschlossen ist: in der Geräteliste **abfragen** ausschalten, dann ruht es, statt als Störung zu erscheinen |

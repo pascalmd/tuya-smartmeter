@@ -1155,8 +1155,8 @@ async def setup_submit(
     request: Request,
     password: str = Form(...),
     password2: str = Form(...),
-    client_id: str = Form(...),
-    client_secret: str = Form(...),
+    client_id: str = Form(""),
+    client_secret: str = Form(""),
     region: str = Form("eu"),
 ):
     if config.setup_done and not logged_in(request):
@@ -1178,27 +1178,43 @@ async def setup_submit(
     if len(password) < 8:
         return fail("Das Passwort muss mindestens 8 Zeichen haben.")
     if password != password2:
-        return fail("Die beiden Passwoerter stimmen nicht ueberein.")
+        return fail("Die beiden Passwörter stimmen nicht überein.")
     if region not in ENDPOINTS:
         return fail("Unbekannte Region.")
 
-    config.set_tuya(client_id, client_secret, region)
-    reset_client()
-    try:
-        await client().list_devices()
-    except TuyaError as exc:
-        return fail(tuya_error_hint(exc, client_id, client_secret))
-    except Exception as exc:
-        return fail(f"Keine Verbindung zur Tuya-Cloud: {exc}")
+    # Zugangsdaten eines Entwicklerprojekts sind hier ausdruecklich freiwillig.
+    # Der empfohlene Weg ist die QR-Anmeldung, und die braucht kein Projekt --
+    # sie laesst sich aber erst nach dem Anmelden einrichten. Wer sie hier
+    # verlangt, zwingt jeden durch eine zwanzigminuetige Registrierung, die
+    # die Anleitung im selben Atemzug fuer ueberfluessig erklaert.
+    mit_projekt = bool(client_id.strip() and client_secret.strip())
+    if mit_projekt:
+        config.set_tuya(client_id, client_secret, region)
+        reset_client()
+        try:
+            await client().list_devices()
+        except TuyaError as exc:
+            return fail(tuya_error_hint(exc, client_id, client_secret))
+        except Exception as exc:
+            return fail(f"Keine Verbindung zur Tuya-Cloud: {exc}")
+    elif client_id.strip() or client_secret.strip():
+        return fail("Access ID und Access Secret gehören zusammen — bitte beide "
+                    "eintragen oder beide leer lassen.")
 
     config.set_admin_password(password)
     config.set("setup_done", True)
-    config.set("tuya_setup_ts", time.time())
+    if mit_projekt:
+        config.set("tuya_setup_ts", time.time())
     config.ensure_api_token()
     config.save()
     request.session["user"] = "admin"
-    store.log_event("info", "Ersteinrichtung abgeschlossen")
-    return RedirectResponse("/devices", status_code=303)
+    store.log_event(
+        "info",
+        "Ersteinrichtung abgeschlossen"
+        + (" (mit Entwicklerprojekt)" if mit_projekt else " (ohne Entwicklerprojekt)"),
+    )
+    # Ohne Projekt gibt es noch keine Geraeteliste -- dann zuerst den Zugang.
+    return RedirectResponse("/devices" if mit_projekt else "/zugang", status_code=303)
 
 
 # ---------------------------------------------------------------------- Login
@@ -1530,7 +1546,11 @@ async def zugang_qr_fertig(request: Request):
                 text += f" — {len(geraete)} Geräte sichtbar"
         except Exception:
             pass
-    return RedirectResponse(f"/zugang?saved=1&meldung={text.replace(' ', '+')}", 303)
+    # Wer noch kein Geraet hat, will als naechstes genau das auswaehlen --
+    # die Liste steht jetzt zur Verfuegung.
+    ziel = "/devices?saved=1" if not geraete.liste() else "/zugang?saved=1"
+    trenner = "&" if "?" in ziel else "?"
+    return RedirectResponse(f"{ziel}{trenner}meldung={text.replace(' ', '+')}", 303)
 
 
 @app.get("/zugang/qr.png")
@@ -1848,7 +1868,7 @@ async def settings_save(
         if len(password) < 8:
             return fail("Das neue Passwort muss mindestens 8 Zeichen haben.")
         if password != password2:
-            return fail("Die beiden Passwoerter stimmen nicht ueberein.")
+            return fail("Die beiden Passwörter stimmen nicht überein.")
         config.set_admin_password(password)
 
     # Leeres Secret-Feld = unveraendert lassen (es wird nie im Klartext angezeigt).
