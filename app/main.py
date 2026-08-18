@@ -135,11 +135,13 @@ class DeviceState:
         """
         eintrag = geraete.holen(self.device_id) or {}
         auto = automation.settings(config.get("automation"))
-        # Der Ausgang gehoert zum Geraet. Der Wert in der Regel ist nur noch
-        # Rueckfall fuer alte Konfigurationen, danach "switch" als letzte Wahl.
-        auto["switch_code"] = (
-            eintrag.get("switch_code") or auto.get("switch_code") or "switch"
-        )
+        # Der Ausgang gehoert zum Geraet -- ausschliesslich. Ein gemeinsamer
+        # Rueckfallwert waere fuer neue Geraete schlicht geraten: Was beim
+        # Zaehler "switch_1" heisst, heisst bei der naechsten Steckdose
+        # vielleicht "switch". Der Start raeumt den Altwert in die Geraete,
+        # danach bleibt "switch" als neutrale Vorgabe, bis die erste
+        # Rueckmeldung den echten Namen liefert.
+        auto["switch_code"] = eintrag.get("switch_code") or "switch"
         auto["mitmachen"] = bool(eintrag.get("automatik_aktiv", True))
         auto["enabled"] = bool(auto["enabled"] and auto["mitmachen"])
         return auto

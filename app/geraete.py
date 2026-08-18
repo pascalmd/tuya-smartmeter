@@ -89,11 +89,27 @@ def _aus_einzelgeraet() -> list[dict[str, Any]]:
 
 def migrieren() -> bool:
     """Einmalig die Liste anlegen. Gibt zurueck, ob etwas geschrieben wurde."""
-    if config.get("devices") is not None:
-        return False
-    config.set("devices", _aus_einzelgeraet())
-    config.save()
-    return True
+    geaendert = False
+    if config.get("devices") is None:
+        config.set("devices", _aus_einzelgeraet())
+        geaendert = True
+
+    # Den Schaltkanal aus der gemeinsamen Regel raeumen, sobald er in den
+    # Geraeten steht. Bliebe er stehen, wuerde ihn jedes spaeter aufgenommene
+    # Geraet erben -- ein Zaehler mit "switch" bekaeme das "switch_1" der
+    # Steckdose verpasst und liesse sich nicht schalten.
+    regel = dict(config.get("automation") or {})
+    if regel.get("switch_code"):
+        for eintrag in liste():
+            if not eintrag.get("switch_code"):
+                aktualisieren(eintrag["id"], switch_code=regel["switch_code"])
+        regel["switch_code"] = ""
+        config.set("automation", regel)
+        geaendert = True
+
+    if geaendert:
+        config.save()
+    return geaendert
 
 
 def speichern(eintraege: list[dict[str, Any]]) -> None:

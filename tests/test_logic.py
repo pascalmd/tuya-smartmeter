@@ -685,15 +685,82 @@ class Geraetebestand(unittest.TestCase):
         self.geraete.hinzufuegen("neu", "Neues Geraet")
         self.assertEqual(main.zustand("neu").auto["switch_code"], "switch")
 
-    def test_alter_globaler_kanal_gilt_als_rueckfall(self) -> None:
+    def test_alter_globaler_kanal_wandert_ins_geraet(self) -> None:
         """Wer von 1.4 kommt, hatte den Kanal in der Regel stehen."""
-        from app import main
         from app.config import config
 
         config.set("automation", {"enabled": True, "mode": "threshold",
                                   "switch_code": "switch_1"})
         self.geraete.hinzufuegen("alt", "Altgeraet")      # ohne eigenen Kanal
-        self.assertEqual(main.zustand("alt").auto["switch_code"], "switch_1")
+        self.geraete.migrieren()
+
+        self.assertEqual(self.geraete.holen("alt")["switch_code"], "switch_1")
+        self.assertEqual(config.get("automation")["switch_code"], "")
+
+    def test_neues_geraet_bekommt_nur_neutrale_vorgaben(self) -> None:
+        """Wachtest gegen eine ganze Fehlerklasse: geerbte Altwerte.
+
+        Ein frisch aufgenommenes Geraet darf nichts aus einer bestehenden
+        Konfiguration uebernehmen, was zu einem ANDEREN Geraet gehoert --
+        weder Schaltkanal noch Adresse, Schluessel oder Datenpunkte. Der
+        Schaltkanal ist damit schon einmal durchgerutscht; dieser Test faellt
+        auch bei jedem kuenftigen Feld auf, das denselben Weg nimmt.
+        """
+        from app import geraete
+        from app.config import config
+
+        # Eine reichlich gefuellte Alt-Konfiguration
+        config.set("automation", {"enabled": True, "mode": "threshold",
+                                  "switch_code": "switch_1"})
+        config.set("local", {"enabled": True, "ip": "192.168.1.99", "key": "ALT",
+                             "version": 3.4, "dp_map": {"1": "switch_1"}})
+        config.set("override_until", 9_999_999_999)
+        self.geraete.hinzufuegen("bestehend", "Bestehendes")
+        self.geraete.aktualisieren("bestehend", local={"enabled": True,
+                                                       "ip": "192.168.1.99", "key": "ALT"})
+        self.geraete.migrieren()
+
+        neu = self.geraete.hinzufuegen("frisch", "Frisches Geraet")
+        vorlage = geraete.VORLAGE
+
+        for feld in ("switch_code", "override_until", "automatik_aktiv",
+                     "aktiv", "aufzeichnen"):
+            self.assertEqual(neu[feld], vorlage[feld], f"{feld} wurde geerbt")
+        for feld in ("enabled", "ip", "key", "version", "dp_map"):
+            self.assertEqual(neu["local"][feld], vorlage["local"][feld],
+                             f"local.{feld} wurde geerbt")
+
+    def test_regel_enthaelt_nichts_geraetespezifisches(self) -> None:
+        """Nach dem Start darf in der gemeinsamen Regel kein Geraetewert stehen."""
+        from app.config import config
+
+        config.set("automation", {"enabled": True, "mode": "threshold",
+                                  "switch_code": "switch_1"})
+        self.geraete.hinzufuegen("a", "A")
+        self.geraete.migrieren()
+
+        regel = config.get("automation")
+        self.assertFalse(regel.get("switch_code"),
+                         "Der Schaltkanal gehoert zum Geraet, nicht zur Regel")
+
+    def test_neues_geraet_erbt_den_alten_kanal_nicht(self) -> None:
+        """Sonst bekaeme ein Zaehler mit "switch" das "switch_1" der Steckdose.
+
+        Genau danach gefragt: Der aufgeraeumte Altwert darf spaeter
+        hinzugefuegten Geraeten nicht mehr uebergestuelpt werden.
+        """
+        from app import main
+        from app.config import config
+
+        config.set("automation", {"enabled": True, "mode": "threshold",
+                                  "switch_code": "switch_1"})
+        self.geraete.hinzufuegen("dose", "Steckdose")
+        self.geraete.migrieren()                 # raeumt den Altwert weg
+
+        self.geraete.hinzufuegen("spaeter", "Neuer Zaehler")
+        self.assertEqual(self.geraete.holen("spaeter")["switch_code"], "")
+        self.assertEqual(main.zustand("spaeter").auto["switch_code"], "switch")
+        self.assertEqual(main.zustand("dose").auto["switch_code"], "switch_1")
 
     def test_gemeinsame_regel_je_geraet_an_oder_aus(self) -> None:
         """Eine Regel fuer alle; pro Geraet nur, ob es ihr folgt."""
