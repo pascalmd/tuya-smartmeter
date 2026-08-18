@@ -24,13 +24,28 @@
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   .wrap { max-width: 760px; margin: 0 auto; padding: 16px; }
+  /* Breites (Tabellen, Diagramme) scrollt in seinem eigenen Kasten, nicht
+     die ganze Seite. */
+  .scroll { overflow-x: auto; }
+  body { overflow-x: hidden; }
   header {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; padding: 14px 16px; background: var(--card);
     border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
   }
   header h1 { font-size: 17px; margin: 0; font-weight: 650; }
-  header nav { display: flex; gap: 14px; font-size: 14px; }
+  /* Auf dem Handy passen sechs Punkte nicht in eine Zeile. Ohne Umbruch
+     schob die Leiste die ganze Seite zur Seite -- jede Ansicht liess sich
+     dann waagerecht wegschieben, was wie ein Darstellungsfehler aussieht. */
+  header nav {
+    display: flex; gap: 14px; font-size: 14px;
+    flex-wrap: wrap; row-gap: 6px;
+  }
+  @media (max-width: 560px) {
+    header { gap: 6px; padding: 12px 14px; }
+    header nav { gap: 12px; font-size: 13.5px; }
+  }
   a { color: var(--accent); }
   a:hover { text-decoration: underline; }
   header nav a { color: var(--muted); text-decoration: none; }
@@ -48,6 +63,12 @@
     background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
   }
   input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  /* Ein Kaestchen von 13 px trifft auf einem Handy niemand zuverlaessig. */
+  input[type="checkbox"] {
+    width: 22px; height: 22px; min-width: 22px; accent-color: var(--accent);
+    margin: 2px 0;
+  }
+  label:has(input[type="checkbox"]) { padding: 4px 0; }
   button, .btn {
     display: inline-block; padding: 11px 18px; font-size: 15px; font-weight: 600;
     background: var(--accent); color: var(--accent-fg); border: 0;

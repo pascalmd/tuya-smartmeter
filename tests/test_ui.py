@@ -724,6 +724,63 @@ class Dauerbetrieb(unittest.TestCase):
         self.assertEqual([g["id"] for g in geraete.liste()], ["gut"])
 
 
+class SeitenGeruest(unittest.TestCase):
+    """Fehler, die man nur im ausgelieferten HTML sieht.
+
+    Anlass: Auf der Einstellungsseite stand das ganze Rechenskript im
+    {% raw %}{% block title %}{% endraw %} -- also im <title>-Tag. Dort wird
+    Skript nicht ausgefuehrt, sondern als Text behandelt: Die Hochrechnung des
+    Tuya-Kontingents lief nie, und im Browser-Tab stand Quelltext. Weder Tests
+    noch ein Blick auf die Seite zeigen das; man muss ins Geruest sehen.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        from fastapi.testclient import TestClient
+
+        config.set_admin_password("geruest123")
+        config.set("setup_done", True)
+        geraete.speichern([{"id": "a", "name": "Eins"}])
+        main.logged_in = lambda request: True
+        cls.client = TestClient(main.app)
+        cls.client.__enter__()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.client.__exit__(None, None, None)
+
+    def test_titel_enthaelt_nur_text(self) -> None:
+        for pfad in SEITEN + ["/diagnose", "/setup", "/login"]:
+            antwort = self.client.get(pfad, follow_redirects=False)
+            if antwort.status_code != 200:
+                continue
+            titel = re.search(r"<title>(.*?)</title>", antwort.text, re.S)
+            with self.subTest(pfad=pfad):
+                self.assertIsNotNone(titel, f"{pfad} hat keinen Titel")
+                inhalt = titel.group(1)
+                self.assertNotIn("<", inhalt, f"{pfad}: Markup im Titel")
+                self.assertLess(len(inhalt), 80, f"{pfad}: Titel ist kein Titel")
+
+    def test_skripte_stehen_im_koerper(self) -> None:
+        """Ein Skript im Kopfbereich der Vorlage wird nicht ausgefuehrt."""
+        for pfad in SEITEN + ["/diagnose"]:
+            antwort = self.client.get(pfad, follow_redirects=False)
+            if antwort.status_code != 200 or "<script>" not in antwort.text:
+                continue
+            kopf, _, koerper = antwort.text.partition("</head>")
+            with self.subTest(pfad=pfad):
+                self.assertNotIn("<script>", kopf, f"{pfad}: Skript im Kopf")
+                self.assertIn("<script>", koerper)
+
+    def test_kontingentrechnung_ist_vollstaendig(self) -> None:
+        seite = self.client.get("/settings").text
+        self.assertIn("const KONTINGENT", seite)
+        self.assertIn("GERAETE_UEBER_CLOUD", seite,
+                      "Die Rechnung muss die Zahl der Cloud-Geraete kennen")
+        self.assertIn('id="refresh_seconds"', seite)
+        self.assertIn('id="call-hint"', seite)
+
+
 class Diagnosebericht(unittest.TestCase):
     """Der Bericht ist zum Verschicken gedacht -- er darf nichts verraten.
 

@@ -1,23 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Einstellungen<script>
-  // Verbrauch live hochrechnen, damit niemand aus Versehen das Kontingent sprengt
-  const KONTINGENT = 26000;
-  const feld = document.getElementById('refresh_seconds');
-  const hinweis = document.getElementById('call-hint');
-  function rechne() {
-    const sek = parseInt(feld.value, 10);
-    if (!sek || sek < 1) { hinweis.textContent = ''; return; }
-    const proMonat = Math.round((86400 / sek + 36) * 30);
-    const quote = Math.round(proMonat / KONTINGENT * 100);
-    hinweis.innerHTML =
-      `Ergibt rund <strong>${proMonat.toLocaleString('de-DE')}</strong> Tuya-Aufrufe im Monat — ` +
-      `<strong>${quote} %</strong> des kostenlosen Kontingents.`;
-    hinweis.style.color = quote > 100 ? 'var(--err)' : (quote > 85 ? 'var(--warn)' : 'var(--ok)');
-  }
-  feld.addEventListener('input', rechne);
-  rechne();
-</script>
-{% endblock %}
+{% block title %}Einstellungen{% endblock %}
 {% block content %}
 
 {% if saved == '1' %}<div class="msg ok">Gespeichert.</div>{% endif %}
@@ -34,9 +16,10 @@
   <h2>Geräte und Zugang</h2>
   <p class="muted">
     Welche Geräte die App steuert und auf welchem Weg sie sie erreicht —
-    lokal, per QR-Anmeldung oder über ein Entwicklerprojekt. Jedes Gerät hat
-    seine eigene Regel; ein Zähler kann nach dem Preis schalten, während eine
-    Steckdose nur von Hand bedient wird.
+    lokal, per QR-Anmeldung oder über ein Entwicklerprojekt. Die
+    <a href="/automation">Schaltregel</a> gilt für alle gemeinsam; je Gerät
+    steht nur, ob es ihr folgt. So kann ein Zähler nach dem Preis schalten,
+    während eine Steckdose von Hand bedient wird.
   </p>
   {% if geraete_liste %}
     <p style="margin:0 0 12px">
@@ -111,10 +94,16 @@
            autocomplete="off" spellcheck="false" style="font-family: ui-monospace, monospace"
            data-bwignore="1" data-lpignore="true" data-1p-ignore data-form-type="other">
 
-    <label for="region">Rechenzentrum</label>
+    <label for="region">Rechenzentrum
+      <div class="hint">Für Deutschland: Central Europe.</div>
+    </label>
+    {% set namen = {'eu': 'Central Europe (Deutschland/EU)', 'eu-west': 'Western Europe',
+                    'us': 'Western America', 'us-west': 'Eastern America',
+                    'cn': 'China', 'in': 'India'} %}
     <select id="region" name="region">
       {% for key in regions %}
-        <option value="{{ key }}" {% if cfg.tuya.get('region') == key %}selected{% endif %}>{{ key }}</option>
+        <option value="{{ key }}" {% if cfg.tuya.get('region') == key %}selected{% endif %}>
+          {{ namen.get(key, key) }}</option>
       {% endfor %}
     </select>
 
@@ -253,22 +242,32 @@
     &nbsp;&nbsp;-d '{"code":"switch","value":true}' http://&lt;server&gt;:8099/api/switch</code>
   </p>
 </div>
+
 <script>
-  // Verbrauch live hochrechnen, damit niemand aus Versehen das Kontingent sprengt
-  const KONTINGENT = 26000;
+  // Verbrauch live hochrechnen, damit niemand aus Versehen das Kontingent
+  // sprengt. Stand frueher im Titel-Block der Vorlage, also im title-Tag --
+  // dort wird Skript nicht ausgefuehrt, sondern als Text behandelt: Die
+  // Rechnung lief nie, und im Browser-Tab stand Quelltext.
+  const KONTINGENT = {{ trial_call_limit|default(26000) }};
+  const GERAETE_UEBER_CLOUD = {{ cloud_geraete|default(1) }};
   const feld = document.getElementById('refresh_seconds');
   const hinweis = document.getElementById('call-hint');
   function rechne() {
+    if (!feld || !hinweis) return;
     const sek = parseInt(feld.value, 10);
     if (!sek || sek < 1) { hinweis.textContent = ''; return; }
-    const proMonat = Math.round((86400 / sek + 36) * 30);
+    // Je Geraet ein Abruf plus Spezifikation, dazu die Token-Erneuerung
+    const proMonat = Math.round(((86400 / sek + 24) * GERAETE_UEBER_CLOUD + 12) * 30);
     const quote = Math.round(proMonat / KONTINGENT * 100);
+    const wieLange = quote > 100 ? ` — das Kontingent ist nach etwa
+      ${Math.max(1, Math.floor(30 * KONTINGENT / proMonat))} Tagen aufgebraucht` : '';
     hinweis.innerHTML =
       `Ergibt rund <strong>${proMonat.toLocaleString('de-DE')}</strong> Tuya-Aufrufe im Monat — ` +
-      `<strong>${quote} %</strong> des kostenlosen Kontingents.`;
+      `<strong>${quote} %</strong> des kostenlosen Kontingents` +
+      (GERAETE_UEBER_CLOUD > 1 ? ` bei ${GERAETE_UEBER_CLOUD} Geräten über die Cloud` : '') +
+      `${wieLange}.`;
     hinweis.style.color = quote > 100 ? 'var(--err)' : (quote > 85 ? 'var(--warn)' : 'var(--ok)');
   }
-  feld.addEventListener('input', rechne);
-  rechne();
+  if (feld) { feld.addEventListener('input', rechne); rechne(); }
 </script>
 {% endblock %}

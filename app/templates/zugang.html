@@ -118,7 +118,7 @@
   <form method="post" action="/zugang/lokal">
     {% if geraet %}<input type="hidden" name="device" value="{{ geraet.id }}">{% endif %}
     <label style="display:flex; align-items:center; gap:10px; margin-top:0">
-      <input type="checkbox" name="aktiv" style="width:auto" {% if lokal.get('enabled') %}checked{% endif %}>
+      <input type="checkbox" name="aktiv" {% if lokal.get('enabled') %}checked{% endif %}>
       Lokalen Zugang verwenden
     </label>
 

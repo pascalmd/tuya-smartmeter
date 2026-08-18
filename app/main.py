@@ -869,7 +869,13 @@ async def lifespan(app: FastAPI):
             pass
 
 
-app = FastAPI(title="Tuya Smartmeter", lifespan=lifespan, docs_url=None, redoc_url=None)
+# Keine oeffentliche Schnittstellenbeschreibung: /docs und /redoc waren schon
+# aus, /openapi.json aber noch erreichbar -- und listete jede Route samt
+# Parametern auf. Fuer einen Dienst, der Strom schaltet, ist das eine
+# Einladung, die niemand braucht; wer die Schnittstelle nutzt, findet sie im
+# README.
+app = FastAPI(title="Tuya Smartmeter", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(
     SessionMiddleware,
     secret_key=config.session_secret(),
@@ -1293,7 +1299,7 @@ async def devices_page(request: Request, saved: str = "", meldung: str = ""):
         except TuyaError as exc:
             error = (
                 f"{exc.msg} (Code {exc.code}). Ist das Smart-Life-Konto im Tuya-Projekt "
-                "unter 'Devices → Link App Account' verknuepft?"
+                "unter 'Devices → Link App Account' verknüpft?"
             )
         except Exception as exc:
             error = str(exc)
@@ -1860,6 +1866,8 @@ async def settings_page(request: Request, saved: str = ""):
         api_token=config.ensure_api_token(),
         trial=trial_status(),
         geraete_liste=geraete.zusammenfassung(),
+        trial_call_limit=TRIAL_CALLS_PER_MONTH,
+        cloud_geraete=max(1, sum(1 for st in alle_zustaende() if st.kanal == "cloud")),
         saved=saved,
         error=None,
     )
@@ -1887,6 +1895,8 @@ async def settings_save(
             api_token=config.ensure_api_token(),
             trial=trial_status(),
             geraete_liste=geraete.zusammenfassung(),
+            trial_call_limit=TRIAL_CALLS_PER_MONTH,
+            cloud_geraete=max(1, sum(1 for st in alle_zustaende() if st.kanal == 'cloud')),
             saved="",
             error=msg,
         )
