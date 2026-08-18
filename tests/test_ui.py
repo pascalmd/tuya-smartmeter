@@ -320,7 +320,7 @@ class Diagnosebericht(unittest.TestCase):
         self.main = main
         config.set_admin_password(self.GEHEIMNISSE["passwort"])
         config.set("setup_done", True)
-        config.set_tuya("clientid20zeichenxx", self.GEHEIMNISSE["client_secret"], "eu")
+        config.set_tuya("CLIENTIDVOLLSTAENDIG", self.GEHEIMNISSE["client_secret"], "eu")
         config.set("api_token", self.GEHEIMNISSE["api_token"])
         config.set("session_secret", self.GEHEIMNISSE["session"])
         config.set("tibber", {"token": self.GEHEIMNISSE["tibber_token"],
@@ -357,6 +357,20 @@ class Diagnosebericht(unittest.TestCase):
             text = self.client.get(pfad).text
             for name, geheimnis in self.GEHEIMNISSE.items():
                 self.assertNotIn(geheimnis, text, f"{name} steht auf {pfad}")
+
+    def test_kontokennungen_nur_angedeutet(self) -> None:
+        """Access ID und Benutzercode sind nicht geheim, aber nichts fuer Dritte.
+
+        Anlass: Im echten Bericht stand die Access ID vollstaendig -- gefunden
+        beim Abgleich des Berichts gegen die echte Konfiguration.
+        """
+        import json
+
+        bericht = self.main.diagnose_daten()
+        text = json.dumps(bericht, ensure_ascii=False)
+        self.assertNotIn("CLIENTIDVOLLSTAENDIG", text)
+        self.assertEqual(bericht["zugang"]["tuya_projekt"]["access_id"],
+                         "CLIE… (20 Zeichen)")
 
     def test_befund_statt_inhalt(self) -> None:
         """Was zaehlt, ist ob und wie lang -- daran erkennt man ein abgeschnittenes Secret."""

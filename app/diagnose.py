@@ -32,6 +32,12 @@ from .config import CONFIG_FILE, config
 # faellt so automatisch unter die Regel, solange es sinnvoll heisst.
 GEHEIM = ("secret", "key", "token", "hash", "salt", "password", "passwort")
 
+# Nicht geheim, aber auch nichts fuer eine Nachricht an Dritte: Werte, die ein
+# Konto oder Projekt benennen. Von ihnen bleibt der Anfang stehen -- genug, um
+# zwei Installationen zu vergleichen ("sind das dieselben Zugangsdaten?"),
+# zu wenig, um damit etwas anzufangen.
+HALBOFFEN = ("client_id", "user_code", "home_id", "uid")
+
 
 def _befund(wert: Any) -> str:
     """Ein Geheimnis auf das reduzieren, was zur Fehlersuche taugt."""
@@ -47,6 +53,16 @@ def _ist_geheim(schluessel: str) -> bool:
     return any(teil in schluessel.lower() for teil in GEHEIM)
 
 
+def _angedeutet(wert: Any) -> str:
+    """Anfang zeigen, Rest verschweigen."""
+    if wert in (None, "", {}, []):
+        return "nicht gesetzt"
+    text = str(wert)
+    if len(text) <= 6:
+        return f"{text[:2]}… ({len(text)} Zeichen)"
+    return f"{text[:4]}… ({len(text)} Zeichen)"
+
+
 def _saeubern(daten: Any, pfad: str = "") -> Any:
     """Rekursiv durch die Konfiguration und jedes Geheimnis ersetzen."""
     if isinstance(daten, dict):
@@ -54,6 +70,8 @@ def _saeubern(daten: Any, pfad: str = "") -> Any:
         for schluessel, wert in daten.items():
             if _ist_geheim(schluessel):
                 sauber[schluessel] = _befund(wert)
+            elif schluessel.lower() in HALBOFFEN:
+                sauber[schluessel] = _angedeutet(wert)
             elif schluessel == "dp_map" and isinstance(wert, dict):
                 # Die Zuordnung selbst ist unverdaechtig, aber lang.
                 sauber[schluessel] = f"{len(wert)} Eintraege: {', '.join(sorted(wert.values())[:8])}"
@@ -343,13 +361,13 @@ def bericht(zustaende: list[dict[str, Any]], preis_stand: dict[str, Any],
         },
         "zugang": {
             "tuya_projekt": {
-                "access_id": _befund(config.tuya.get("client_id")),
+                "access_id": _angedeutet(config.tuya.get("client_id")),
                 "access_secret": _befund(config.tuya.get("client_secret")),
                 "rechenzentrum": config.tuya.get("region"),
             },
             "qr_anmeldung": {
                 "eingerichtet": bool((config.get("sharing") or {}).get("enabled")),
-                "benutzercode": _befund((config.get("sharing") or {}).get("user_code")),
+                "benutzercode": _angedeutet((config.get("sharing") or {}).get("user_code")),
                 "token": _befund((config.get("sharing") or {}).get("token")),
                 "offener_vorgang": bool((config.get("sharing") or {}).get("pending_token")),
             },
