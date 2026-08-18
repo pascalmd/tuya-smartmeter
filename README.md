@@ -218,7 +218,10 @@ REST-Endpunkt. Für den Push braucht es ein *classic* Personal Access Token mit
 
   Die übrigen Grenzen der Trial Edition sind unkritisch: 50 Geräte, davon 10
   steuerbare, ein Rechenzentrum.
-- **Schaltkanal:** Die App bietet an, was das Gerät in seiner Spezifikation als
+- **Schaltkanal:** Gehört zum Gerät, nicht zur Regel — er steht in der
+  Geräteliste unter *Einstellungen → Geräte*. Die App erkennt ihn beim ersten
+  Abruf selbst (Zähler nennen ihn meist `switch`, Steckdosen `switch_1`) und
+  bietet an, was das Gerät in seiner Spezifikation als
   Boolean meldet — bei den meisten Zählern `switch`.
 
 ## Datenschutz / Sicherheit

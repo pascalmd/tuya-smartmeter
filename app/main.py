@@ -135,8 +135,11 @@ class DeviceState:
         """
         eintrag = geraete.holen(self.device_id) or {}
         auto = automation.settings(config.get("automation"))
-        if eintrag.get("switch_code"):
-            auto["switch_code"] = eintrag["switch_code"]
+        # Der Ausgang gehoert zum Geraet. Der Wert in der Regel ist nur noch
+        # Rueckfall fuer alte Konfigurationen, danach "switch" als letzte Wahl.
+        auto["switch_code"] = (
+            eintrag.get("switch_code") or auto.get("switch_code") or "switch"
+        )
         auto["mitmachen"] = bool(eintrag.get("automatik_aktiv", True))
         auto["enabled"] = bool(auto["enabled"] and auto["mitmachen"])
         return auto
@@ -1240,6 +1243,8 @@ async def devices_page(request: Request, saved: str = "", meldung: str = ""):
                       "aktiv": eintrag.get("aktiv", True),
                       "automatik_aktiv": eintrag.get("automatik_aktiv", True),
                       "switch_code": eintrag.get("switch_code", ""),
+                      "gemeldete_schalter": [sw["code"] for sw in st.view.get("switches", [])
+                                             if sw.get("present")],
                       "aufzeichnen": eintrag.get("aufzeichnen", True)})
     return page(
         request, "devices.html",
@@ -1337,6 +1342,23 @@ async def devices_active(request: Request, device_id: str = Form(...), aktiv: st
         store.log_event("info", "Geraet ruht — wird nicht mehr abgefragt", device=gid)
     else:
         store.log_event("info", "Geraet wieder aktiv", device=gid)
+    return RedirectResponse("/devices?saved=1", 303)
+
+
+@app.post("/devices/schaltkanal")
+async def devices_switch_code(request: Request, device_id: str = Form(...),
+                              switch_code: str = Form("")):
+    """Welchen Ausgang dieses Geraet schaltet."""
+    require_login(request)
+    gid = device_id.strip()
+    geraete.aktualisieren(gid, switch_code=switch_code.strip())
+    store.log_event("info", f"Schaltkanal auf '{switch_code.strip()}' gesetzt", device=gid)
+    st = _states.get(gid)
+    if st:
+        try:
+            await apply_automation(st)
+        except Exception as exc:
+            log.warning("[%s] Automatik nach Kanalwechsel: %s", st.label(), exc)
     return RedirectResponse("/devices?saved=1", 303)
 
 
@@ -1678,7 +1700,6 @@ async def automation_save(request: Request):
     auto.update(
         {
             "enabled": form.get("enabled") == "on",
-            "switch_code": (form.get("switch_code") or "switch").strip(),
             "mode": form.get("mode") or "threshold",
             "threshold_ct": float(form.get("threshold_ct") or 0),
             "cheapest_hours": int(form.get("cheapest_hours") or 0),

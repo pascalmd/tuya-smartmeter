@@ -48,22 +48,9 @@
       {% endif %}
     </div>
 
-    {% if geraete|default([])|length > 1 %}
-      {# Bei mehreren Geraeten hat jedes seinen eigenen Ausgang — er steht unten
-         in der Liste. Ein gemeinsames Feld waere hier schlicht falsch. #}
-      <input type="hidden" name="switch_code" value="{{ auto.switch_code }}">
-    {% else %}
-    <label for="switch_code">Schaltkanal</label>
-    <select id="switch_code" name="switch_code">
-      {% for code in switch_codes %}
-        <option value="{{ code }}" {% if auto.switch_code == code %}selected{% endif %}>{{ code }}</option>
-      {% endfor %}
-    </select>
-    <div class="hint">
-      Bei den meisten Zählern <code>switch</code>, bei Steckdosen oft
-      <code>switch_1</code>. Die App erkennt das beim ersten Abruf selbst.
-    </div>
-    {% endif %}
+    {# Welcher Ausgang geschaltet wird, steht beim Geraet: Der eine nennt ihn
+       "switch", der naechste "switch_1" -- eine gemeinsame Regel kann dafuer
+       keinen gemeinsamen Wert haben. Einstellbar in der Geraeteliste. #}
 
     <label for="mode">Regel</label>
     <select id="mode" name="mode" onchange="showMode(this.value)">
@@ -94,7 +81,7 @@
                 {{ g.name or g.id[:8] }}</strong>
             </td>
             <td style="padding:9px 12px 9px 0" class="muted">
-              schaltet <code>{{ g.switch_code or auto.switch_code }}</code>
+              schaltet <code>{{ g.switch_code or auto.switch_code or 'switch' }}</code>
             </td>
             <td style="padding:9px 0">
               {% if g.automatik_aktiv %}<span style="color:var(--ok)">folgt der Regel</span>

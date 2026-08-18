@@ -659,6 +659,42 @@ class Geraetebestand(unittest.TestCase):
         self.assertEqual(config.get("automation")["cheapest_hours"], 5)
         self.assertTrue(alle[0]["automatik_aktiv"])
 
+    def test_schaltkanal_gehoert_zum_geraet(self) -> None:
+        """Eine Regel fuer alle kann keinen gemeinsamen Ausgang haben.
+
+        Der eine nennt ihn "switch", der naechste "switch_1" -- ein globaler
+        Wert waere fuer mindestens eines der beiden falsch.
+        """
+        from app import main
+        from app.config import config
+
+        config.set("automation", {"enabled": True, "mode": "threshold", "threshold_ct": 20.0})
+        self.geraete.hinzufuegen("zaehler", "Zaehler")
+        self.geraete.hinzufuegen("dose", "Dose")
+        self.geraete.aktualisieren("zaehler", switch_code="switch")
+        self.geraete.aktualisieren("dose", switch_code="switch_1")
+
+        self.assertEqual(main.zustand("zaehler").auto["switch_code"], "switch")
+        self.assertEqual(main.zustand("dose").auto["switch_code"], "switch_1")
+
+    def test_ohne_angabe_bleibt_es_bei_switch(self) -> None:
+        from app import main
+        from app.config import config
+
+        config.set("automation", {"enabled": True, "mode": "threshold"})
+        self.geraete.hinzufuegen("neu", "Neues Geraet")
+        self.assertEqual(main.zustand("neu").auto["switch_code"], "switch")
+
+    def test_alter_globaler_kanal_gilt_als_rueckfall(self) -> None:
+        """Wer von 1.4 kommt, hatte den Kanal in der Regel stehen."""
+        from app import main
+        from app.config import config
+
+        config.set("automation", {"enabled": True, "mode": "threshold",
+                                  "switch_code": "switch_1"})
+        self.geraete.hinzufuegen("alt", "Altgeraet")      # ohne eigenen Kanal
+        self.assertEqual(main.zustand("alt").auto["switch_code"], "switch_1")
+
     def test_gemeinsame_regel_je_geraet_an_oder_aus(self) -> None:
         """Eine Regel fuer alle; pro Geraet nur, ob es ihr folgt."""
         from app import main

@@ -14,7 +14,12 @@ from .tibber import LEVEL_LABELS, cheapest_hours, parse_ts
 
 DEFAULTS: dict[str, Any] = {
     "enabled": False,
-    "switch_code": "switch",
+    # Nur noch Rueckfall fuer Konfigurationen aus der Zeit vor der
+    # Geraeteliste. Welcher Ausgang geschaltet wird, haengt am Geraet und
+    # steht dort -- eine Regel, die fuer mehrere Geraete gilt, kann keinen
+    # gemeinsamen Kanal haben, wenn der eine "switch" und der andere
+    # "switch_1" heisst.
+    "switch_code": "",
     "mode": "threshold",          # threshold | cheapest | level
     "threshold_ct": 25.0,         # ct/kWh, brutto (Endpreis, nicht Boersenpreis)
     "cheapest_hours": 6,          # Anzahl guenstigster Stunden pro Tag
