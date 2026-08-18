@@ -1713,6 +1713,10 @@ async def tibber_save(
 ):
     require_login(request)
     tibber = dict(config.get("tibber") or {})
+    # Ein leeres Feld heisst hier "unveraendert" -- zum Loeschen gibt es den
+    # eigenen Knopf. Ohne den kam man aus einem falsch eingetippten Token nicht
+    # mehr heraus: Das Feld liess sich nicht leeren, und leer abschicken
+    # aenderte nichts.
     if token.strip():
         tibber["token"] = token.strip()
     if home_id.strip():
@@ -1734,6 +1738,31 @@ async def tibber_save(
             return RedirectResponse("/tibber?saved=error", status_code=303)
         return RedirectResponse("/automation", status_code=303)
     return RedirectResponse("/tibber?saved=1", status_code=303)
+
+
+@app.post("/tibber/entfernen")
+async def tibber_entfernen(request: Request):
+    """Tibber-Zugang loeschen und die Preisquelle wieder auf Boersendaten stellen.
+
+    Beides gehoert zusammen: Bliebe Tibber als Quelle eingestellt, stuende die
+    App anschliessend ohne Preise da -- und ohne Preise schaltet die Automatik
+    nicht mehr.
+    """
+    require_login(request)
+    config.set("tibber", {"token": "", "home_id": "", "home_label": ""})
+
+    umgestellt = ""
+    price_cfg = prices.settings(config.get("price"))
+    if price_cfg["source"] == "tibber":
+        price_cfg["source"] = "awattar_de"
+        config.set("price", price_cfg)
+        umgestellt = "+Preisquelle+auf+Boersenpreise+umgestellt"
+    config.save()
+
+    preise.data, preise.ts, preise.error = {}, 0.0, ""
+    await poll_prices(force=True)
+    store.log_event("info", "Tibber-Zugang entfernt")
+    return RedirectResponse(f"/preisquelle?saved=1&meldung=Tibber-Zugang+entfernt{umgestellt}", 303)
 
 
 # ------------------------------------------------------------------ Automatik
@@ -1904,6 +1933,29 @@ async def trial_verlaengert(request: Request):
     config.save()
     store.log_event("info", "Tuya-Testzeitraum als verlängert markiert")
     return RedirectResponse(request.headers.get("referer", "/"), status_code=303)
+
+
+@app.post("/settings/tuya-entfernen")
+async def tuya_entfernen(request: Request):
+    """Die Zugangsdaten des Entwicklerprojekts loeschen.
+
+    Fuer alle, die auf die QR-Anmeldung oder den lokalen Weg umgestiegen sind:
+    Bleiben die alten Daten stehen, meldet die App weiter Fehler eines Projekts,
+    das niemand mehr braucht -- und warnt vor einem Testzeitraum, der keine
+    Rolle mehr spielt. Loeschen liess sich das bisher nicht, weil ein leeres
+    Feld als "unveraendert" galt.
+    """
+    require_login(request)
+    config.set_tuya("", "", config.tuya.get("region", "eu"))
+    config.set("tuya_setup_ts", 0)
+    config.set("trial_expires", "")
+    config.save()
+    reset_client()
+    for st in _states.values():
+        st.error = ""
+        st.spec, st.spec_fetched_at = {}, 0.0
+    store.log_event("info", "Zugangsdaten des Entwicklerprojekts entfernt")
+    return RedirectResponse("/settings?saved=tuya-entfernt", 303)
 
 
 @app.post("/settings/rotate-token")

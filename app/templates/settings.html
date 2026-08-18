@@ -21,6 +21,12 @@
 {% block content %}
 
 {% if saved == '1' %}<div class="msg ok">Gespeichert.</div>{% endif %}
+{% if saved == 'tuya-entfernt' %}
+  <div class="msg ok">
+    Zugangsdaten entfernt. Die App nutzt jetzt nur noch die Wege, die ohne
+    Entwicklerprojekt auskommen.
+  </div>
+{% endif %}
 {% if saved == 'token' %}<div class="msg ok">Neuer API-Token erzeugt.</div>{% endif %}
 {% if error %}<div class="msg err">{{ error }}</div>{% endif %}
 
@@ -47,6 +53,29 @@
     <a class="btn secondary" href="/zugang">Zugang einrichten</a>
   </p>
 </div>
+
+{% if cfg.tuya.get('client_id') %}
+<div class="card">
+  <h2>Entwicklerprojekt nicht mehr nutzen</h2>
+  <p class="muted" style="margin-top:0">
+    Läuft dein Zugang über die QR-Anmeldung oder lokal, brauchst du die
+    Zugangsdaten des Entwicklerprojekts nicht mehr. Solange sie hier stehen,
+    meldet die App Fehler eines Projekts, das niemand mehr benutzt — und warnt
+    vor einem Testzeitraum, der keine Rolle spielt.
+  </p>
+  <p class="muted">
+    <strong>Vorsicht:</strong> Geräte, die weder lokal noch über die
+    QR-Anmeldung erreichbar sind, lassen sich danach nicht mehr abfragen.
+    Auf der <a href="/">Übersicht</a> steht bei jedem Gerät, welchen Weg es nimmt.
+  </p>
+  <form method="post" action="/settings/tuya-entfernen"
+        onsubmit="return confirm('Access ID und Secret wirklich entfernen?')">
+    <button class="secondary" type="submit" style="color:var(--err)">
+      Zugangsdaten entfernen
+    </button>
+  </form>
+</div>
+{% endif %}
 
 <div class="card">
   <h2>Hilfe bei Problemen</h2>

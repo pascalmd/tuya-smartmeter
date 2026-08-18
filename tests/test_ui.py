@@ -560,6 +560,76 @@ class Ersteinrichtung(unittest.TestCase):
                 self.assertLess(antwort.status_code, 400, f"{pfad}: {antwort.status_code}")
 
 
+class ZugangsdatenEntfernen(unittest.TestCase):
+    """Falsch eingetippte Zugangsdaten muss man wieder loswerden.
+
+    Beide Formulare hielten ein leeres Feld fuer "unveraendert" -- gedacht als
+    Bequemlichkeit, in Wahrheit eine Falle: Ein falscher Tibber-Token liess
+    sich weder leeren noch ueberschreiben, weil das Feld zusaetzlich Pflicht
+    war. Wer sich vertippt hatte, sass fest.
+    """
+
+    def setUp(self) -> None:
+        from fastapi.testclient import TestClient
+
+        config.set_admin_password("entfernen123")
+        config.set("setup_done", True)
+        config.set("tibber", {"token": "FALSCH", "home_id": "h1", "home_label": "Haus"})
+        config.set("price", {"source": "tibber", "markup_ct": 20.0})
+        config.set_tuya("clientid20zeichenxx", "secret" * 5 + "xx", "eu")
+        config.save()
+        main.logged_in = lambda request: True
+        self.client = TestClient(main.app)
+
+    def tearDown(self) -> None:
+        self.client.close()
+
+    def test_tibber_zugang_laesst_sich_entfernen(self) -> None:
+        seite = self.client.get("/tibber").text
+        self.assertIn("/tibber/entfernen", seite, "Es fehlt der Weg zum Entfernen")
+
+        antwort = self.client.post("/tibber/entfernen", follow_redirects=False)
+        self.assertEqual(antwort.status_code, 303)
+        self.assertEqual(config.get("tibber")["token"], "")
+        self.assertEqual(config.get("tibber")["home_id"], "")
+
+    def test_preisquelle_faellt_dabei_auf_boersenpreise_zurueck(self) -> None:
+        """Sonst stuende die App ohne Preise da -- und die Automatik still."""
+        self.client.post("/tibber/entfernen", follow_redirects=False)
+        self.assertEqual(config.get("price")["source"], "awattar_de")
+
+    def test_andere_preisquelle_bleibt_unberuehrt(self) -> None:
+        config.set("price", {"source": "energy_charts", "markup_ct": 20.0})
+        self.client.post("/tibber/entfernen", follow_redirects=False)
+        self.assertEqual(config.get("price")["source"], "energy_charts")
+
+    def test_tokenfeld_ist_nicht_pflicht_wenn_schon_eines_steht(self) -> None:
+        seite = self.client.get("/tibber").text
+        feld = seite.split('name="token"', 1)[1].split(">")[0]
+        self.assertNotIn("required", feld)
+
+    def test_tuya_zugangsdaten_lassen_sich_entfernen(self) -> None:
+        seite = self.client.get("/settings").text
+        self.assertIn("/settings/tuya-entfernen", seite)
+
+        antwort = self.client.post("/settings/tuya-entfernen", follow_redirects=False)
+        self.assertEqual(antwort.status_code, 303)
+        self.assertEqual(config.tuya.get("client_id"), "")
+        self.assertEqual(config.tuya.get("client_secret"), "")
+        self.assertEqual(config.get("trial_expires"), "")
+
+    def test_ohne_zugangsdaten_kein_hinweis_zum_entfernen(self) -> None:
+        self.client.post("/settings/tuya-entfernen", follow_redirects=False)
+        self.assertNotIn("/settings/tuya-entfernen", self.client.get("/settings").text)
+
+    def test_app_laeuft_nach_dem_entfernen_weiter(self) -> None:
+        self.client.post("/settings/tuya-entfernen", follow_redirects=False)
+        self.client.post("/tibber/entfernen", follow_redirects=False)
+        for pfad in SEITEN + ["/diagnose"]:
+            with self.subTest(pfad=pfad):
+                self.assertLess(self.client.get(pfad, follow_redirects=False).status_code, 400)
+
+
 class Dauerbetrieb(unittest.TestCase):
     """Faelle, die kein Formular abdeckt und die trotzdem taeglich vorkommen."""
 

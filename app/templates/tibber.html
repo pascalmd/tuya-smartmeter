@@ -10,13 +10,25 @@
 </div>
 
 {% if error %}<div class="msg err">{{ error }}</div>{% endif %}
-{% if saved == 'error' %}<div class="msg err">Gespeichert, aber der Preisabruf hat nicht geklappt. Token und Zuhause prüfen.</div>{% endif %}
+{% if saved == 'error' %}
+  <div class="msg err">
+    <strong>Gespeichert, aber der Preisabruf hat nicht geklappt.</strong>
+    Meist stimmt der Token nicht oder der Vertrag liefert keine Stundenpreise.
+    Prüf beides — oder entferne den Zugang unten wieder, dann rechnet die App
+    mit Börsenpreisen weiter.
+  </div>
+{% endif %}
 {% if saved == '1' %}<div class="msg ok">Gespeichert.</div>{% endif %}
 
 <form method="post" class="card">
   <h2>Zugriffstoken</h2>
   <label for="token">Tibber Access Token
-    {% if tibber.token %}<div class="hint">Ist hinterlegt. Feld leer lassen, um ihn zu behalten.</div>{% endif %}
+    {% if tibber.token %}
+      <div class="hint">
+        Ist hinterlegt ({{ tibber.token|length }} Zeichen). Feld leer lassen, um
+        ihn zu behalten — oder einen neuen einfügen, der ersetzt ihn.
+      </div>
+    {% endif %}
   </label>
   <input type="text" id="token" name="token" autocomplete="off" spellcheck="false"
          style="font-family: ui-monospace, monospace"
@@ -25,6 +37,24 @@
          placeholder="{{ '••••••••••••' if tibber.token else '' }}">
   <p style="margin-top:16px"><button type="submit">Speichern und Zuhause laden</button></p>
 </form>
+
+{% if tibber.token %}
+<div class="card">
+  <h2>Tibber nicht mehr verwenden</h2>
+  <p class="muted" style="margin-top:0">
+    Falscher Token eingetippt, oder Tibber ganz abbestellt? Damit ist der Zugang
+    weg — Token und Zuhause werden gelöscht. Steht die Preisquelle auf Tibber,
+    stellt die App sie zugleich auf Börsenpreise zurück, damit die Automatik
+    nicht ohne Preise dasteht.
+  </p>
+  <form method="post" action="/tibber/entfernen"
+        onsubmit="return confirm('Tibber-Zugang wirklich entfernen?')">
+    <button class="secondary" type="submit" style="color:var(--err)">
+      Tibber-Zugang entfernen
+    </button>
+  </form>
+</div>
+{% endif %}
 
 {% if homes %}
 <form method="post" class="card">
