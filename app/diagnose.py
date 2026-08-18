@@ -198,16 +198,87 @@ def laufzeitumgebung() -> dict[str, Any]:
         "dateien": sorted(p.name for p in verzeichnis.glob("*")) if verzeichnis.exists() else [],
     }
 
-    # Umgebungsvariablen: nur die, die das Verhalten steuern -- und auch die
-    # laufen durch dieselbe Geheimnispruefung wie alles andere.
-    interessant = ("TZ", "LOG_LEVEL", "CONFIG_DIR", "APP_VERSION", "BUILD_DATE",
-                   "GIT_COMMIT", "PYTHONUNBUFFERED", "PORT", "HOSTNAME", "PATH",
-                   "LANG", "HOME", "VIRTUAL_ENV")
-    aus["umgebungsvariablen"] = {
-        name: (_befund(wert) if _ist_geheim(name) else wert)
-        for name, wert in sorted(os.environ.items())
-        if name in interessant
+    # Was beim Start mitgegeben wurde. Das ist der interessante Teil: Alles,
+    # was hier steht, hat jemand in compose.yaml, im TrueNAS-Formular oder im
+    # docker-run-Aufruf eingetragen -- und genau dort sitzen die Fehler, die
+    # man von aussen nicht sieht (falscher Pfad, vergessene Zeitzone, Port
+    # daneben). Geheimnisse laufen durch dieselbe Pruefung wie alles andere.
+    vom_image = {
+        "PATH", "HOME", "HOSTNAME", "LANG", "LC_ALL", "PYTHON_VERSION",
+        "PYTHON_PIP_VERSION", "PYTHON_SETUPTOOLS_VERSION", "PYTHON_SHA256",
+        "PYTHONUNBUFFERED", "GPG_KEY", "PYTHONDONTWRITEBYTECODE", "SHLVL", "PWD",
+        "PYTHON_GET_PIP_URL", "PYTHON_GET_PIP_SHA256", "DEBIAN_FRONTEND",
     }
+    # Ausserhalb eines Containers steht in der Umgebung alles Moegliche, was
+    # mit der App nichts zu tun hat. Dann nur, was sie selbst auswertet.
+    relevant = ("TZ", "CONFIG_DIR", "LOG_LEVEL", "PORT", "APP_", "BUILD_",
+                "GIT_", "UVICORN_", "TUYA_", "SMARTMETER_")
+    def gehoert_dazu(name: str) -> bool:
+        if aus["im_container"]:
+            return name not in vom_image
+        return name.startswith(relevant) or name in relevant
+
+    aus["mitgegeben"] = {
+        "umgebungsvariablen": {
+            name: (_befund(wert) if _ist_geheim(name) else wert)
+            for name, wert in sorted(os.environ.items())
+            if gehoert_dazu(name)
+        },
+        "aus_dem_image": {
+            name: os.environ[name] for name in sorted(vom_image & set(os.environ))
+            if name in ("TZ", "LANG", "PYTHONUNBUFFERED", "HOSTNAME")
+        },
+    }
+
+    # Eingebundene Verzeichnisse: Quelle auf dem Wirt -> Ziel im Container.
+    # Verraet auch, worauf die App eigentlich laeuft: Ein Pfad unter
+    # /mnt/.../ix-applications deutet auf TrueNAS, /DATA/AppData auf einen
+    # der ueblichen Docker-Hosts.
+    einbindungen = []
+    try:
+        with open("/proc/self/mountinfo") as f:
+            for zeile in f:
+                teile = zeile.split()
+                if len(teile) < 5:
+                    continue
+                quelle, ziel = teile[3], teile[4]
+                if ziel.startswith(("/proc", "/sys", "/dev")) or ziel == "/":
+                    continue
+                dateisystem = teile[teile.index("-") + 1] if "-" in teile else ""
+                if dateisystem in ("tmpfs", "cgroup", "cgroup2", "mqueue", "devpts",
+                                   "sysfs", "proc"):
+                    continue
+                einbindungen.append({"im_container": ziel, "quelle": quelle,
+                                     "dateisystem": dateisystem})
+    except OSError:
+        pass
+    aus["einbindungen"] = einbindungen or "nicht lesbar"
+
+    # Startbefehl und Benutzer -- beides ueberschreibbar (command:, user:)
+    try:
+        with open("/proc/1/cmdline", "rb") as f:
+            aus["startbefehl"] = " ".join(f.read().decode().split("\x00")).strip()
+    except OSError:
+        aus["startbefehl"] = "nicht lesbar"
+    aus["benutzer"] = {"uid": os.getuid(), "gid": os.getgid()}
+
+    # Worauf der Dienst lauscht (der veroeffentlichte Port des Wirts ist von
+    # innen nicht sichtbar, der interne schon).
+    lauscht = []
+    try:
+        for datei, familie in (("/proc/net/tcp", "IPv4"), ("/proc/net/tcp6", "IPv6")):
+            if not os.path.exists(datei):
+                continue
+            with open(datei) as f:
+                for zeile in f.readlines()[1:]:
+                    felder = zeile.split()
+                    if felder[3] != "0A":          # 0A = LISTEN
+                        continue
+                    port = int(felder[1].split(":")[1], 16)
+                    lauscht.append(f"{familie}:{port}")
+    except OSError:
+        pass
+    aus["lauscht_auf"] = sorted(set(lauscht)) or "nicht lesbar"
 
     # Eigene Adressen -- fuer die Frage, ob App und Geraet im selben Netz sind
     try:

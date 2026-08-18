@@ -567,17 +567,28 @@ async def poll_device(st: DeviceState | None = None) -> None:
         st.off_since = None
 
     if current is None:
-        # Der eingestellte Kanal existiert an diesem Geraet nicht. Das ist der
-        # Normalfall nach der Ersteinrichtung: Der Standard heisst "switch",
-        # viele Geraete nennen ihren Ausgang aber "switch_1". Ohne diese
-        # Korrektur stuende die Automatik still, ohne dass jemand den Grund sieht.
+        # Der eingestellte Kanal existiert an diesem Geraet nicht -- der
+        # Normalfall, solange keiner erkannt wurde: Der Platzhalter heisst
+        # "switch", viele Geraete nennen ihren Ausgang aber "switch_1".
+        #
+        # Welcher es ist, kann die App selbst entscheiden: Das Geraet meldet
+        # seine schaltbaren Ausgaenge, und mehr als deren Namen gibt es nicht
+        # zu wissen. Frueher griff die Korrektur nur bei genau einem Ausgang;
+        # eine Mehrfachsteckdose blieb damit stumm, obwohl die Antwort
+        # ("nimm den ersten") auf der Hand lag.
         vorhandene = [sw["code"] for sw in st.view.get("switches", []) if sw.get("present")]
-        if len(vorhandene) == 1 and vorhandene[0] != auto["switch_code"]:
-            auto["switch_code"] = vorhandene[0]
-            geraete.aktualisieren(device_id, switch_code=vorhandene[0])
-            log.info("[%s] Schaltkanal automatisch auf '%s' gesetzt", st.label(), vorhandene[0])
+        if vorhandene and auto["switch_code"] not in vorhandene:
+            gewaehlt = vorhandene[0]
+            auto["switch_code"] = gewaehlt
+            geraete.aktualisieren(device_id, switch_code=gewaehlt)
+            log.info("[%s] Schaltkanal erkannt: '%s'%s", st.label(), gewaehlt,
+                     f" (von {len(vorhandene)} Ausgaengen)" if len(vorhandene) > 1 else "")
             store.log_event(
-                "info", f"Schaltkanal automatisch auf '{vorhandene[0]}' gesetzt", device=device_id
+                "info",
+                f"Schaltkanal erkannt: '{gewaehlt}'"
+                + (f" — das Geraet meldet {len(vorhandene)}: {', '.join(vorhandene)}"
+                   if len(vorhandene) > 1 else ""),
+                device=device_id,
             )
             current = st.switch_value(auto["switch_code"])
 

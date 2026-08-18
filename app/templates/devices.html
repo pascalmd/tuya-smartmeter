@@ -123,19 +123,28 @@
                   <label style="margin:0; font-size:13px; font-weight:400" class="muted">
                     schaltet
                   </label>
-                  {% if g.gemeldete_schalter %}
+                  {% if g.gemeldete_schalter|length > 1 %}
+                    {# Nur hier gibt es etwas zu entscheiden: Eine
+                       Mehrfachsteckdose meldet mehrere Ausgaenge, und welcher
+                       gemeint ist, weiss nur der Nutzer. Bei genau einem
+                       waehlt die App selbst. #}
                     <select name="switch_code" onchange="this.form.submit()"
                             style="width:auto; padding:5px 8px; font-size:13px">
                       {% for code in g.gemeldete_schalter %}
                         <option value="{{ code }}"
-                          {% if (g.switch_code or g.automation.switch_code) == code %}selected{% endif %}>
+                          {% if g.automation.switch_code == code %}selected{% endif %}>
                           {{ code }}</option>
                       {% endfor %}
                     </select>
+                    <span class="muted" style="font-size:12.5px">von
+                      {{ g.gemeldete_schalter|length }} Ausgängen</span>
+                  {% elif g.gemeldete_schalter %}
+                    <code style="font-size:13px">{{ g.gemeldete_schalter[0] }}</code>
+                    <span class="muted" style="font-size:12.5px">(erkannt)</span>
                   {% else %}
                     <span class="muted" style="font-size:13px">
-                      <code>{{ g.switch_code or '—' }}</code>
-                      (noch keine Rückmeldung)
+                      noch keine Rückmeldung{% if g.switch_code %},
+                      zuletzt <code>{{ g.switch_code }}</code>{% endif %}
                     </span>
                   {% endif %}
                 </form>
