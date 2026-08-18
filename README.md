@@ -128,12 +128,23 @@ Tagesmittel, weil nur Tibber sie mitliefert.
 
 ## Schaltregeln
 
-| Modus | Verhalten |
-|-------|-----------|
-| `threshold` | EIN, solange der aktuelle Preis ≤ Schwelle (ct/kWh) |
-| `cheapest` | EIN in den n günstigsten Stunden des Tages (verstreut) |
-| `cheapest_block` | EIN im günstigsten zusammenhängenden Block von n Stunden — genau ein Ein- und Ausschalten, darf über Mitternacht gehen |
-| `level` | EIN bei den ausgewählten Preisstufen (sehr günstig … sehr teuer) |
+| Modus | In der Oberfläche | Verhalten |
+|-------|-------------------|-----------|
+| `threshold` | Preisschwelle | EIN, solange der aktuelle Preis ≤ Schwelle (ct/kWh) |
+| `cheapest` | Günstigste Stunden | EIN in den n günstigsten Stunden des Tages (verstreut) |
+| `cheapest_block` | Günstigster Block am Stück | EIN im günstigsten zusammenhängenden Block von n Stunden — genau ein Ein- und Ausschalten, darf über Mitternacht gehen |
+| `level` | Preisstufe | EIN bei den ausgewählten Preisstufen (sehr günstig … sehr teuer) |
+
+Die Regel gilt für **alle** Geräte. Je Gerät stehen in der Geräteliste
+(*Einstellungen → Geräte*) nur zwei Häkchen:
+
+| Häkchen | Bedeutung |
+|---------|-----------|
+| **folgt der Regel** | Das Gerät wird automatisch geschaltet. Ohne Häkchen bleibt es unberührt und wird nur auf der Übersicht von Hand bedient |
+| **abfragen** | Aus heißt: Das Gerät ruht — es wird nicht abgefragt und erscheint nicht als Störung. Für eine Steckdose, die erst noch kommt oder über den Winter abgeklemmt ist; Name, Einstellungen und Verlauf bleiben erhalten |
+
+Welchen Ausgang die Regel schaltet, erkennt die App selbst aus dem, was das Gerät
+meldet (`switch`, `switch_1`, …); nur bei mehreren Ausgängen steht eine Auswahl.
 
 Schutzmechanismen (alle abschaltbar): Sicherheitsnetz (Zwangs-EIN nach x Stunden
 aus), Mindestlaufzeit, Mindest-Aus-Zeit gegen Flattern, Automatikpause nach

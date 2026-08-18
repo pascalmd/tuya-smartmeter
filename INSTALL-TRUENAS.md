@@ -279,7 +279,7 @@ Danach läuft die App dauerhaft weiter, auch wenn du den Browser schließt.
 
 ## Teil 5 — Automatik einstellen
 
-Drei Regeln stehen zur Wahl:
+Vier Regeln stehen zur Wahl:
 
 **Preisschwelle** — am einfachsten zu verstehen.
 Du gibst an: einschalten bis z. B. 25 ct/kWh. Liegt der aktuelle Preis darunter,
@@ -289,15 +289,26 @@ ist der Zähler ein, sonst aus.
 Du gibst an: die 6 günstigsten Stunden des Tages. Die App sucht sie aus den
 Tagespreisen heraus und schaltet nur dann ein.
 
+**Günstigster Block am Stück** — für alles, was durchlaufen soll.
+Statt der billigsten Stunden einzeln sucht die App den günstigsten
+*zusammenhängenden* Block: genau ein Einschalten, genau ein Ausschalten. Für
+Geräte, die eine Unterbrechung nicht vertragen oder danach nicht von selbst
+weiterlaufen — und jedes Schalten unter Last kostet Relais-Lebensdauer. Kostet
+meist nichts extra: Strompreise bilden ein Tal, die billigen Stunden liegen also
+ohnehin beieinander.
+
 **Preisstufen** — teilt die Stunden in fünf Stufen ein, gemessen am
 Tagesdurchschnitt: sehr günstig, günstig, normal, teuer, sehr teuer. Du hakst an,
 bei welchen Stufen eingeschaltet werden soll.
 
-Dazu drei Schutzeinstellungen:
+Dazu vier Schutzeinstellungen:
 
 - **Sicherheitsnetz** — nie länger als x Stunden aus. Verhindert, dass ein teurer
   Tag das Gerät dauerhaft abschaltet. Wenn etwas dranhängt, das nicht beliebig
   lange aus sein darf, stell das ein.
+- **Mindestlaufzeit** — einmal eingeschaltet, bleibt es so lange an, auch wenn der
+  Preis zwischendurch steigt. Wichtig für alles, was nicht nach ein paar Minuten
+  wieder abgewürgt werden soll.
 - **Mindest-Aus-Zeit** — verhindert schnelles Hin- und Herschalten an der Preisgrenze.
 - **Pause nach Handbedienung** — schaltest du selbst auf der Übersicht, hält sich
   die Automatik so lange zurück. Sonst würde sie sofort zurückschalten.

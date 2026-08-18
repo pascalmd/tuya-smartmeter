@@ -51,7 +51,7 @@ fi
 # Alle drei Ebenen, und ein Fehlschlag bricht ab. Vorher lief nur die
 # Schaltlogik -- die war jedes Mal in Ordnung, waehrend die Oberflaeche
 # Zustaende falsch anzeigte. Genau die pruefen test_ui und test_browser.
-for pruefung in tests/test_logic.py tests/test_ui.py tests/test_browser.py; do
+for pruefung in tests/test_logic.py tests/test_ui.py tests/test_browser.py tests/test_doku.py; do
   [ -f "$pruefung" ] || continue
   printf '  %-24s' "$(basename "$pruefung")"
   if ausgabe=$("$PYTHON" "$pruefung" 2>&1); then
