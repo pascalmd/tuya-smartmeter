@@ -1,10 +1,21 @@
 FROM python:3.12-slim
 
 # Beim Bauen mitgegeben (siehe release.sh), damit in der Oberflaeche steht,
-# welche Fassung laeuft — sonst weiss niemand, ob eine Korrektur schon drin ist.
+# welche Version laeuft — sonst weiss niemand, ob eine Korrektur schon drin ist.
 ARG APP_VERSION=dev
 ARG BUILD_DATE=unbekannt
 ARG GIT_COMMIT=unbekannt
+
+# Herkunftsangaben nach OCI-Standard. Die erste Zeile ist die wichtige:
+# Anhand von image.source ordnet GitHub das Paket dem Repo zu -- unabhaengig
+# davon, wo gebaut wurde. Ohne sie steht das Paket dort ohne Bezug, ohne
+# Beschreibung und ohne Verweis auf den Quelltext.
+LABEL org.opencontainers.image.source="https://github.com/pascalmd/tuya-smartmeter" \
+      org.opencontainers.image.title="tuya-smartmeter" \
+      org.opencontainers.image.description="Schaltet Tuya-Geraete nach dem aktuellen Strompreis" \
+      org.opencontainers.image.version="$APP_VERSION" \
+      org.opencontainers.image.revision="$GIT_COMMIT" \
+      org.opencontainers.image.created="$BUILD_DATE"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
