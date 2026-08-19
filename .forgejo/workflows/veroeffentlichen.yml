@@ -13,19 +13,29 @@ on:
   workflow_dispatch:
 
 jobs:
+  pruefen:
+    # Eigener Auftrag im Playwright-Abbild: Python und Chromium sind dort
+    # fertig eingerichtet.
+    runs-on: docker
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.55.0-noble
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir playwright==1.55.0
+      - run: python tests/test_logic.py
+      - run: python tests/test_ui.py
+      - run: python tests/test_browser.py
+      - run: python tests/test_doku.py
+
   bauen:
+    needs: pruefen
     runs-on: docker
     container:
       image: catthehacker/ubuntu:act-22.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Paketquellen auf IPv4 festlegen
-        # Die Docker-Bruecke dieses Rechners spricht kein IPv6, die
-        # Paketquellen loesen aber auf IPv6-Adressen auf. apt laeuft dann in
-        # Zeitueberschreitungen, ohne je einen Fehler zu melden -- der Auftrag
-        # haengt einfach.
-        run: echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99-ipv4
 
 
       - name: Version aus dem Tag ableiten
@@ -45,21 +55,6 @@ jobs:
           # aber keinen Sprung auf eine Version 2.
           echo "reihe=${NUMMER%%.*}" >> "$GITHUB_OUTPUT"
           echo "reihe_minor=$(echo "$NUMMER" | cut -d. -f1,2)" >> "$GITHUB_OUTPUT"
-
-      - name: Python bereitstellen
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Pruefungen
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt playwright
-          playwright install --with-deps chromium
-          python tests/test_logic.py
-          python tests/test_ui.py
-          python tests/test_browser.py
-          python tests/test_doku.py
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
