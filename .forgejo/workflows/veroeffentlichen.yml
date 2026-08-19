@@ -20,6 +20,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Paketquellen auf IPv4 festlegen
+        # Die Docker-Bruecke dieses Rechners spricht kein IPv6, die
+        # Paketquellen loesen aber auf IPv6-Adressen auf. apt laeuft dann in
+        # Zeitueberschreitungen, ohne je einen Fehler zu melden -- der Auftrag
+        # haengt einfach.
+        run: echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99-ipv4
+
+
       - name: Version aus dem Tag ableiten
         id: v
         run: |
