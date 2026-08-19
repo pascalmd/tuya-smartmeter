@@ -69,15 +69,18 @@ jobs:
           username: pascalmd
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: An der eigenen Registry anmelden
-        uses: docker/login-action@v3
-        with:
-          registry: git.7x10.net
-          username: pascal
-          # Nicht das automatische Auftrags-Token: Das darf den Quelltext
-          # lesen, aber keine Pakete schreiben -- die Registry antwortet
-          # darauf mit 403, erst nachdem die Anmeldung durchgelaufen ist.
-          password: ${{ secrets.FORGEJO_TOKEN }}
+      # Die eigene Registry unter git.7x10.net ist von hier aus derzeit nicht
+      # beschreibbar: Der Reverse Proxy laesst nur bestimmte Adressen zu
+      # ("access forbidden by rule"), und der Bau-Container meldet sich aus
+      # dem Docker-Netz 172.16.16.0/24. Das ist eine bewusste Einstellung --
+      # solange sie steht, geht das Abbild nur nach ghcr.io.
+      #
+      # - name: An der eigenen Registry anmelden
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: git.7x10.net
+      #     username: pascal
+      #     password: ${{ secrets.FORGEJO_TOKEN }}
 
       - name: Bauen und hochladen
         uses: docker/build-push-action@v6
@@ -89,11 +92,9 @@ jobs:
           # damit spaeter niemand raten muss, welches Abbild wo laeuft.
           tags: |
             ghcr.io/pascalmd/tuya-smartmeter:${{ steps.v.outputs.nummer }}
-            git.7x10.net/pascal/tuya-smartmeter:${{ steps.v.outputs.nummer }}
             ${{ steps.v.outputs.vorab == 'nein' && format('ghcr.io/pascalmd/tuya-smartmeter:{0}', steps.v.outputs.reihe) || '' }}
             ${{ steps.v.outputs.vorab == 'nein' && format('ghcr.io/pascalmd/tuya-smartmeter:{0}', steps.v.outputs.reihe_minor) || '' }}
             ${{ steps.v.outputs.vorab == 'nein' && 'ghcr.io/pascalmd/tuya-smartmeter:latest' || '' }}
-            ${{ steps.v.outputs.vorab == 'nein' && 'git.7x10.net/pascal/tuya-smartmeter:latest' || '' }}
           build-args: |
             APP_VERSION=${{ steps.v.outputs.nummer }}
             BUILD_DATE=${{ steps.v.outputs.datum }}
