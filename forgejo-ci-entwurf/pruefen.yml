@@ -1,0 +1,29 @@
+# Prueft jeden Stand auf main -- ohne etwas zu veroeffentlichen.
+#
+# Damit faellt ein Fehler auf, sobald er entsteht, und nicht erst beim
+# naechsten Versuch zu veroeffentlichen.
+name: Pruefen
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install playwright
+          playwright install --with-deps chromium
+      - run: python tests/test_logic.py
+      - run: python tests/test_ui.py
+      - run: python tests/test_browser.py
+      - run: python tests/test_doku.py
