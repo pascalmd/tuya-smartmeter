@@ -267,10 +267,6 @@ Alle Rechte vorbehalten. Der Quelltext ist einsehbar, aber es wird keine
 Nutzungslizenz erteilt: Wer die App verwenden, verändern oder weitergeben
 möchte, fragt vorher.
 
-*(Frühere Versionen lagen bis August 2026 unter der MIT-Lizenz. Wer eine
-Kopie davon erhalten hat, behält die damit eingeräumten Rechte an dieser
-Kopie — für alles Spätere gilt der Absatz oben.)*
-
 ## Datenschutz / Sicherheit
 
 - Zugangsdaten liegen ausschließlich in `/config/config.json` (Rechte 600), nie im Image.
