@@ -20,7 +20,10 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright/python:v1.55.0-noble
     steps:
-      - uses: actions/checkout@v4
+      # Ohne node laeuft actions/checkout hier nicht -- git genuegt.
+      - run: |
+          git clone --depth 1 --branch "${GITHUB_REF_NAME}" \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" .
       - run: |
           pip install --no-cache-dir -r requirements.txt
           pip install --no-cache-dir playwright==1.55.0

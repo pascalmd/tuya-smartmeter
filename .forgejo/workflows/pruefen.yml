@@ -1,9 +1,9 @@
 # Prueft jeden Stand auf main -- ohne etwas zu veroeffentlichen.
 #
-# Der Auftrag laeuft im fertigen Playwright-Abbild: Dort sind Python 3.12 und
-# ein einsatzbereiter Chromium schon enthalten. Der Weg ueber
-# "playwright install --with-deps" holte stattdessen bei jedem Lauf rund
-# 200 MB Systempakete -- das dauerte laenger als alle Pruefungen zusammen.
+# Der Auftrag laeuft im fertigen Playwright-Abbild: Python 3.12 und ein
+# einsatzbereiter Chromium sind dort enthalten. Der Weg ueber
+# "playwright install --with-deps" holte bei jedem Lauf rund 200 MB
+# Systempakete und dauerte laenger als alle Pruefungen zusammen.
 name: Pruefen
 
 on:
@@ -16,13 +16,19 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright/python:v1.55.0-noble
     steps:
-      - uses: actions/checkout@v4
+      # Kein actions/checkout: Das ist eine JavaScript-Aktion und braucht node,
+      # das in diesem Abbild fehlt. git ist da, und mehr braucht es nicht.
+      - name: Quelltext holen
+        run: |
+          git clone --depth 1 --branch "${GITHUB_REF_NAME}" \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" .
+          git log --oneline -1
 
       - name: Abhaengigkeiten
         run: |
           pip install --no-cache-dir -r requirements.txt
-          # Die Version muss zum Browser im Abbild passen, sonst sucht
-          # Playwright einen, den es dort nicht gibt.
+          # Muss zum Browser im Abbild passen, sonst sucht Playwright einen,
+          # den es dort nicht gibt.
           pip install --no-cache-dir playwright==1.55.0
 
       - name: Schaltlogik und Geraetebestand
